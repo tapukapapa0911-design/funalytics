@@ -20,6 +20,7 @@ const state = {
 
 let deferredInstallPrompt = null;
 let waitingServiceWorker = null;
+let pendingUpdateReload = false;
 const MODAL_ANIMATION_MS = 220;
 
 const $ = (id) => document.getElementById(id);
@@ -1355,7 +1356,14 @@ const bindEvents = () => {
   });
   $("updateBanner")?.addEventListener("click", () => {
     if (waitingServiceWorker) {
+      pendingUpdateReload = true;
+      setUpdateBanner(false);
       waitingServiceWorker.postMessage({ type: "SKIP_WAITING" });
+      window.setTimeout(() => {
+        if (pendingUpdateReload) {
+          window.location.reload();
+        }
+      }, 800);
     }
   });
   $("saveReport").addEventListener("click", () => {
@@ -1387,6 +1395,7 @@ const bindEvents = () => {
         const reloadKey = "funalytics-sw-reload";
         if (!sessionStorage.getItem(reloadKey)) {
           sessionStorage.setItem(reloadKey, "1");
+          pendingUpdateReload = false;
           window.location.reload();
         }
       });

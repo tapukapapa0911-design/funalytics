@@ -78,21 +78,22 @@ button {
 
 .phone-shell {
   width: 100%;
-  max-width: 430px;
+  max-width: none;
   min-height: 100dvh;
   margin: 0 auto;
-  padding: 8px;
+  padding: 0;
 }
 
 .app-frame {
   position: relative;
-  height: calc(100dvh - 20px);
+  width: 100%;
+  height: 100dvh;
   overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 34px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(6px);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .global-modal {
@@ -524,8 +525,7 @@ input {
 
 .quick-filter-row {
   margin: 12px 0 14px;
-  padding-top: 6px;
-  padding-bottom: 6px;
+  padding: 6px 6px;
   overflow-x: auto;
   overflow-y: hidden;
   white-space: nowrap;
@@ -1456,7 +1456,8 @@ svg {
   height: auto;
   display: block;
   margin: 0 auto;
-  border-radius: 0;
+  border-radius: 20px;
+  overflow: hidden;
   background: transparent;
 }
 
@@ -1986,7 +1987,8 @@ body.light .brand-logo-light {
 .install-fab {
   position: fixed;
   left: max(12px, calc(50% - 201px));
-  bottom: calc(var(--nav-height) + var(--nav-dock-offset) + 12px);
+  bottom: 70px;
+  margin-bottom: 8px;
   z-index: 10000;
   display: inline-flex;
   align-items: center;
@@ -2023,17 +2025,10 @@ body.light .brand-logo-light {
   place-items: center;
 }
 
-.install-fab-icon::before {
-  content: "";
-  width: 14px;
-  height: 14px;
-  border: 0;
-  box-shadow: none;
-  background:
-    linear-gradient(currentColor, currentColor) center 2px / 2px 8px no-repeat,
-    linear-gradient(currentColor, currentColor) center bottom / 12px 2px no-repeat,
-    linear-gradient(45deg, transparent 45%, currentColor 46%, currentColor 54%, transparent 55%) center 8px / 10px 10px no-repeat;
-  transform: none;
+.install-fab-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 
 body.light .install-fab {
@@ -2375,16 +2370,16 @@ body.light .bottom-nav {
   }
 
   .phone-shell {
-    width: min(1180px, 100%);
-    min-height: calc(100dvh - 56px);
-    margin: 0 auto;
-    padding: 0;
-  }
-
+      width: 100%;
+      min-height: calc(100dvh - 56px);
+      margin: 0 auto;
+      padding: 0;
+    }
+  
   .app-frame {
-    height: calc(100dvh - 56px);
-    border-radius: 28px;
-  }
+      height: calc(100dvh - 56px);
+      border-radius: 0;
+    }
 
 .app {
   position: relative;
@@ -2424,9 +2419,10 @@ body.light .bottom-nav {
   }
 
   .install-fab {
-    left: max(28px, calc(50% - 340px));
-    bottom: calc(var(--nav-height) + 24px);
-  }
+      left: max(28px, calc(50% - 340px));
+      bottom: 70px;
+      margin-bottom: 8px;
+    }
 
   .detail-sheet {
     width: min(560px, calc(100% - 120px));
