@@ -19,6 +19,7 @@ const state = {
 };
 
 let deferredInstallPrompt = null;
+let waitingServiceWorker = null;
 const MODAL_ANIMATION_MS = 220;
 
 const $ = (id) => document.getElementById(id);
@@ -1071,10 +1072,18 @@ const renderProfile = () => {
 
 const isStandaloneMode = () => window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
 
+const setUpdateBanner = (visible) => {
+  const banner = $("updateBanner");
+  if (!banner) return;
+  banner.hidden = !visible;
+  banner.classList.toggle("visible", visible);
+};
+
 const updateInstallButton = () => {
   const button = $("installButton");
   if (!button) return;
-  const canInstall = Boolean(deferredInstallPrompt) && !isStandaloneMode();
+  const installed = isStandaloneMode();
+  const canInstall = Boolean(deferredInstallPrompt) && !installed;
   button.hidden = !canInstall;
   button.classList.toggle("visible", canInstall);
   renderProfile();
@@ -1335,17 +1344,19 @@ const bindEvents = () => {
 
   $("excelUpload").addEventListener("change", (event) => handleUpload(event.target.files[0]));
   $("installButton").addEventListener("click", async () => {
-    if (deferredInstallPrompt) {
-      deferredInstallPrompt.prompt();
-      try {
-        await deferredInstallPrompt.userChoice;
-      } finally {
-        deferredInstallPrompt = null;
-        updateInstallButton();
-      }
-      return;
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    try {
+      await deferredInstallPrompt.userChoice;
+    } finally {
+      deferredInstallPrompt = null;
+      updateInstallButton();
     }
-    alert(`Install works from a hosted or localhost version of ${APP_NAME}. Android users can then use Add to Home screen in Chrome, and iPhone users can use Share > Add to Home Screen in Safari.`);
+  });
+  $("updateBanner")?.addEventListener("click", () => {
+    if (waitingServiceWorker) {
+      waitingServiceWorker.postMessage({ type: "SKIP_WAITING" });
+    }
   });
   $("saveReport").addEventListener("click", () => {
     const reportWindow = window.open("", "_blank", "width=1100,height=800");
@@ -1358,19 +1369,27 @@ const bindEvents = () => {
 
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
     navigator.serviceWorker.register("/service-worker.js").then((registration) => {
+      if (registration.waiting) {
+        waitingServiceWorker = registration.waiting;
+        setUpdateBanner(true);
+      }
       registration.onupdatefound = () => {
         const installing = registration.installing;
         if (!installing) return;
         installing.addEventListener("statechange", () => {
           if (installing.state === "installed" && navigator.serviceWorker.controller) {
-            const reloadKey = "funalytics-sw-reload";
-            if (!sessionStorage.getItem(reloadKey)) {
-              sessionStorage.setItem(reloadKey, "1");
-              window.location.reload();
-            }
+            waitingServiceWorker = registration.waiting || installing;
+            setUpdateBanner(true);
           }
         });
       };
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        const reloadKey = "funalytics-sw-reload";
+        if (!sessionStorage.getItem(reloadKey)) {
+          sessionStorage.setItem(reloadKey, "1");
+          window.location.reload();
+        }
+      });
     }).catch(() => {});
   }
 
