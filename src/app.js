@@ -22,7 +22,8 @@ let deferredInstallPrompt = null;
 let waitingServiceWorker = null;
 let pendingUpdateReload = false;
 const INSTALL_FLOW_KEY = "install_flow_done";
-const ONBOARDING_KEY = "onboarding_done";
+const ONBOARDING_KEY = "funalytics_onboarding_done";
+const LEGACY_ONBOARDING_KEY = "onboarding_done";
 const BROWSER_INSTALL_CTA_KEY = "browser_install_cta_enabled";
 const ONBOARDING_STEPS = 5;
 const LAST_ONBOARDING_INDEX = 4;
@@ -1139,9 +1140,14 @@ const renderProfile = () => {
 
 const isStandaloneMode = () => window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
 const isInstalledApp = () => window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
-const hasSeenOnboarding = () => localStorage.getItem(ONBOARDING_KEY) === "true";
+const hasSeenOnboarding = () => localStorage.getItem(ONBOARDING_KEY) === "true" || localStorage.getItem(LEGACY_ONBOARDING_KEY) === "true";
 const hasCompletedInstallFlow = () => localStorage.getItem(INSTALL_FLOW_KEY) === "true";
 const shouldShowBrowserInstallCta = () => localStorage.getItem(BROWSER_INSTALL_CTA_KEY) === "true";
+
+const markOnboardingDone = () => {
+  localStorage.setItem(ONBOARDING_KEY, "true");
+  localStorage.setItem(LEGACY_ONBOARDING_KEY, "true");
+};
 
 const showMainApp = () => {
   $("skeleton")?.classList.add("hide");
@@ -1202,7 +1208,7 @@ const hideOnboarding = () => {
 };
 
 const finishOnboarding = () => {
-  localStorage.setItem(ONBOARDING_KEY, "true");
+  markOnboardingDone();
   localStorage.setItem(INSTALL_FLOW_KEY, "true");
   if (!isInstalledApp()) {
     localStorage.setItem(BROWSER_INSTALL_CTA_KEY, "true");
@@ -1249,13 +1255,14 @@ const showOnboardingSlides = () => {
 };
 
 const startExperience = () => {
+  if (hasSeenOnboarding()) {
+    hideOnboarding();
+    enterApp();
+    return;
+  }
   if (isInstalledApp()) {
     document.querySelectorAll(".install-btn").forEach((el) => el.remove());
-    if (!hasSeenOnboarding()) {
-      showOnboardingSlides();
-    } else {
-      enterApp();
-    }
+    showOnboardingSlides();
     return;
   }
   showInstallCard();
@@ -1567,7 +1574,7 @@ const bindEvents = () => {
 
   $("onboardingSkipInstall")?.addEventListener("click", () => {
     localStorage.removeItem(BROWSER_INSTALL_CTA_KEY);
-    showOnboardingSlides();
+    finishOnboarding();
   });
   profileInstallButtonEl()?.addEventListener("click", async () => {
     if (!deferredInstallPrompt) return;
@@ -1695,6 +1702,12 @@ const init = () => {
   updateInstallButton();
   renderAll();
   playSplashAndBoot();
+};
+
+window.resetOnboarding = () => {
+  localStorage.removeItem(ONBOARDING_KEY);
+  localStorage.removeItem(LEGACY_ONBOARDING_KEY);
+  location.reload();
 };
 
 init();
