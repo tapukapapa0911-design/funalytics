@@ -43,6 +43,7 @@ body.light {
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html {
@@ -181,6 +182,14 @@ body.light .splash-logo-light {
   padding: 32px 22px 22px;
 }
 
+.onboarding-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 292px;
+  height: 100%;
+}
+
 .onboarding-step h2 {
   margin: 0 0 10px;
   font-size: 28px;
@@ -201,6 +210,17 @@ body.light .splash-logo-light {
   margin-top: 20px;
 }
 
+.button-row {
+  display: flex;
+  margin-top: auto;
+  justify-content: flex-end;
+  align-items: flex-end;
+}
+
+.install-step .button-row {
+  justify-content: space-between;
+}
+
 .onboarding-actions.single {
   justify-content: flex-end;
 }
@@ -211,6 +231,7 @@ body.light .splash-logo-light {
   padding: 0 18px;
   border-radius: 14px;
   font-weight: 800;
+  transition: all 260ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .primary-action:active,
@@ -700,11 +721,14 @@ input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
-  overflow: visible;
-  padding: 8px;
+  gap: 0;
+  overflow: hidden;
+  padding: 6px;
   min-height: 48px;
   box-sizing: border-box;
+  border-radius: 14px;
+  white-space: normal;
+  scroll-snap-type: none;
 }
 
 .dashboard-return-tabs::before,
@@ -713,14 +737,14 @@ input {
   left: 6px;
   top: 6px;
   bottom: 6px;
-  width: var(--selector-w, calc((100% - 16px) / 3));
+  width: calc(33.33% - 8px);
   height: auto;
-  border-radius: 12px;
+  border-radius: 10px;
   background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(241,245,249,0.96));
   box-shadow: 0 3px 8px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.22);
-  transform: translate3d(var(--selector-x, 0px), 0, 0);
-  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), width 180ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  will-change: transform, width;
+  transform: translate3d(var(--selector-shift, 0%), 0, 0);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
 }
 
 .ranking-filter {
@@ -759,6 +783,11 @@ input {
   min-width: 0;
   padding: 0 10px;
   text-align: center;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.compare-return-filter {
+  align-items: stretch;
 }
 
 #heroDate {

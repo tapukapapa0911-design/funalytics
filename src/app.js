@@ -21,7 +21,8 @@ const state = {
 let deferredInstallPrompt = null;
 let waitingServiceWorker = null;
 let pendingUpdateReload = false;
-const ONBOARDING_KEY = "onboarding_complete";
+const INSTALL_FLOW_KEY = "install_flow_done";
+const ONBOARDING_KEY = "onboarding_done";
 const ONBOARDING_STEPS = 5;
 const LAST_ONBOARDING_INDEX = 4;
 let currentOnboardingIndex = 0;
@@ -35,7 +36,7 @@ const modalBackdrop = () => $("global-modal-backdrop");
 const onboardingEl = () => $("onboarding");
 const onboardContainerEl = () => $("onboardContainer");
 const splashScreenEl = () => $("splashScreen");
-const installButtonEl = () => $("installBtn") || $("installButton");
+const installButtonEl = () => $("installBtn");
 
 const ensureHashRoute = () => {
   if (!window.location.hash) {
@@ -639,12 +640,9 @@ const updateSegmentedPill = (group) => {
     return;
   }
   if (group.matches(".dashboard-return-tabs, .ranking-filter, .compare-return-filter") && buttons.length === 3) {
+    const activeIndex = Math.max(0, buttons.indexOf(active));
     group.style.setProperty("--pill-visible", "1");
-    const groupRect = group.getBoundingClientRect();
-    const activeRect = active.getBoundingClientRect();
-    const offsetX = Math.max(0, activeRect.left - groupRect.left);
-    group.style.setProperty("--selector-x", `${offsetX}px`);
-    group.style.setProperty("--selector-w", `${activeRect.width}px`);
+    group.style.setProperty("--selector-shift", `${activeIndex * 100}%`);
     return;
   }
   group.style.setProperty("--pill-visible", "1");
@@ -1098,7 +1096,9 @@ const renderProfile = () => {
 };
 
 const isStandaloneMode = () => window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
-const hasSeenOnboarding = () => localStorage.getItem(ONBOARDING_KEY) === "true" || localStorage.getItem("hasSeenOnboarding") === "true";
+const isInstalledApp = () => window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+const hasSeenOnboarding = () => localStorage.getItem(ONBOARDING_KEY) === "true";
+const hasCompletedInstallFlow = () => localStorage.getItem(INSTALL_FLOW_KEY) === "true";
 
 const showMainApp = () => {
   $("skeleton")?.classList.add("hide");
@@ -1113,6 +1113,16 @@ const loadDashboard = () => {
   renderAll();
   renderChrome();
   showMainApp();
+};
+
+const enterApp = () => {
+  const floatingInstall = installButtonEl();
+  const shouldShowInstallCta = !isInstalledApp();
+  if (floatingInstall) {
+    floatingInstall.hidden = !shouldShowInstallCta;
+    floatingInstall.style.display = shouldShowInstallCta ? "inline-flex" : "none";
+  }
+  loadDashboard();
 };
 
 const updateOnboardingPosition = (index) => {
@@ -1142,9 +1152,9 @@ const hideOnboarding = () => {
 
 const finishOnboarding = () => {
   localStorage.setItem(ONBOARDING_KEY, "true");
-  localStorage.setItem("hasSeenOnboarding", "true");
+  localStorage.setItem(INSTALL_FLOW_KEY, "true");
   hideOnboarding();
-  loadDashboard();
+  enterApp();
 };
 
 const handleOnboardingNext = () => {
@@ -1156,10 +1166,10 @@ const handleOnboardingNext = () => {
   }
 };
 
-const showOnboarding = () => {
+const showInstallCard = () => {
   const overlay = onboardingEl();
   if (!overlay) {
-    showMainApp();
+    enterApp();
     return;
   }
   overlay.hidden = false;
@@ -1169,12 +1179,30 @@ const showOnboarding = () => {
   updateOnboardingPosition(0);
 };
 
-const startExperience = () => {
-  if (hasSeenOnboarding()) {
-    loadDashboard();
+const showOnboardingSlides = () => {
+  const overlay = onboardingEl();
+  if (!overlay) {
+    enterApp();
     return;
   }
-  showOnboarding();
+  overlay.hidden = false;
+  overlay.style.display = "";
+  overlay.setAttribute("aria-hidden", "false");
+  currentOnboardingIndex = 1;
+  updateOnboardingPosition(1);
+};
+
+const startExperience = () => {
+  if (isInstalledApp()) {
+    document.querySelectorAll(".install-btn").forEach((el) => el.remove());
+    if (!hasSeenOnboarding()) {
+      showOnboardingSlides();
+    } else {
+      enterApp();
+    }
+    return;
+  }
+  showInstallCard();
 };
 
 const playSplashAndBoot = () => {
@@ -1202,11 +1230,16 @@ const setUpdateBanner = (visible) => {
 const updateInstallButton = () => {
   const button = installButtonEl();
   if (!button) return;
-  const installed = isStandaloneMode();
-  const canInstall = Boolean(deferredInstallPrompt) && !installed;
-  button.hidden = !canInstall;
-  button.style.display = canInstall ? "inline-flex" : "none";
-  button.classList.toggle("visible", canInstall);
+  const installed = isInstalledApp();
+  if (!hasCompletedInstallFlow() || installed) {
+    button.hidden = true;
+    button.style.display = "none";
+    button.classList.remove("visible");
+    return;
+  }
+  button.hidden = false;
+  button.style.display = "inline-flex";
+  button.classList.toggle("visible", Boolean(deferredInstallPrompt));
 };
 
 const openDetail = (fundId) => {
@@ -1468,10 +1501,11 @@ const bindEvents = () => {
         updateInstallButton();
       }
     }
-    handleOnboardingNext();
+    localStorage.setItem(INSTALL_FLOW_KEY, "true");
+    enterApp();
   });
 
-  $("onboardingSkipInstall")?.addEventListener("click", handleOnboardingNext);
+  $("onboardingSkipInstall")?.addEventListener("click", showOnboardingSlides);
   document.querySelectorAll(".onboarding-next").forEach((button) => {
     button.addEventListener("click", handleOnboardingNext);
   });
@@ -1509,16 +1543,6 @@ const bindEvents = () => {
   });
 
   $("excelUpload").addEventListener("change", (event) => handleUpload(event.target.files[0]));
-  installButtonEl()?.addEventListener("click", async () => {
-    if (!deferredInstallPrompt) return;
-    deferredInstallPrompt.prompt();
-    const { outcome } = await deferredInstallPrompt.userChoice;
-    if (outcome === "accepted") {
-      console.log("User installed");
-    }
-    deferredInstallPrompt = null;
-    updateInstallButton();
-  });
   $("updateBanner")?.addEventListener("click", () => {
     if (waitingServiceWorker) {
       pendingUpdateReload = true;
@@ -1576,6 +1600,7 @@ const bindEvents = () => {
   });
 
   window.addEventListener("appinstalled", () => {
+    localStorage.setItem(INSTALL_FLOW_KEY, "true");
     deferredInstallPrompt = null;
     updateInstallButton();
   });

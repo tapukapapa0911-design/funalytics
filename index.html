@@ -21,42 +21,42 @@
         <div id="onboarding" class="onboarding-overlay" hidden aria-hidden="true">
           <div class="onboarding-panel">
             <div class="onboard-container" id="onboardContainer">
-              <section class="onboarding-step">
+              <section class="onboarding-step onboarding-card install-step">
                 <p class="eyebrow">Get started</p>
                 <h2>Install Funalytics</h2>
-                <p class="muted">Add the app to your home screen for a smoother, app-like experience.</p>
-                <div class="onboarding-actions">
-                  <button class="primary-action" id="onboardingInstallButton" type="button">Install</button>
+                <p class="muted">Install the app for faster access and a smoother, app-like experience.</p>
+                <div class="onboarding-actions button-row">
+                  <button class="primary-action install-btn" id="onboardingInstallButton" type="button">Install</button>
                   <button class="secondary-action" id="onboardingSkipInstall" type="button">Skip</button>
                 </div>
               </section>
-              <section class="onboarding-step">
+              <section class="onboarding-step onboarding-card">
                 <h2>Welcome to Funalytics</h2>
                 <p class="muted">Clear rankings, cleaner comparisons, and a dashboard built for quick fund decisions.</p>
-                <div class="onboarding-actions single">
+                <div class="onboarding-actions button-row single">
                   <button class="primary-action onboarding-next" id="onboardingWelcomeNext" type="button">Next</button>
                 </div>
               </section>
-              <section class="onboarding-step">
+              <section class="onboarding-step onboarding-card">
                 <h2>Track category leaders</h2>
                 <p class="muted">See the strongest funds in each category with score, trend, and return context in one view.</p>
-                <div class="onboarding-actions">
+                <div class="onboarding-actions button-row">
                   <button class="secondary-action onboarding-skip-all" type="button">Skip</button>
                   <button class="primary-action onboarding-next" type="button">Next</button>
                 </div>
               </section>
-              <section class="onboarding-step">
+              <section class="onboarding-step onboarding-card">
                 <h2>Compare funds faster</h2>
                 <p class="muted">Switch horizons quickly and compare two funds without losing the category context.</p>
-                <div class="onboarding-actions">
+                <div class="onboarding-actions button-row">
                   <button class="secondary-action onboarding-skip-all" type="button">Skip</button>
                   <button class="primary-action onboarding-next" type="button">Next</button>
                 </div>
               </section>
-              <section class="onboarding-step onboarding-last-screen">
+              <section class="onboarding-step onboarding-card onboarding-last-screen">
                 <h2 class="title">Make Smarter Fund Decisions</h2>
                 <p class="muted description">All your rankings, insights, and comparisons in one place. Streamlined for clarity, optimized for speed, and designed to help you decide with confidence.</p>
-                <div class="onboarding-actions">
+                <div class="onboarding-actions button-row">
                   <button class="secondary-action onboarding-skip-all" type="button">Skip</button>
                   <button class="primary-action onboarding-next" id="letsGoBtn" type="button">Let’s Go</button>
                 </div>
@@ -277,7 +277,7 @@
         <button class="update-banner" id="updateBanner" type="button" hidden aria-label="Refresh to latest version">
           New version ready — Tap to refresh
         </button>
-        <button class="install-fab" id="installBtn" type="button" hidden aria-label="Install Funalytics" data-install-btn="true">
+        <button class="install-fab" id="installBtn" type="button" hidden aria-label="Install Funalytics">
           <span class="install-fab-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
               <path d="M12 4v9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
