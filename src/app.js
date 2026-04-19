@@ -639,9 +639,12 @@ const updateSegmentedPill = (group) => {
     return;
   }
   if (group.matches(".dashboard-return-tabs, .ranking-filter, .compare-return-filter") && buttons.length === 3) {
-    const activeIndex = Math.max(0, buttons.indexOf(active));
     group.style.setProperty("--pill-visible", "1");
-    group.style.setProperty("--selector-shift", `${activeIndex * 100}%`);
+    const groupRect = group.getBoundingClientRect();
+    const activeRect = active.getBoundingClientRect();
+    const offsetX = Math.max(0, activeRect.left - groupRect.left);
+    group.style.setProperty("--selector-x", `${offsetX}px`);
+    group.style.setProperty("--selector-w", `${activeRect.width}px`);
     return;
   }
   group.style.setProperty("--pill-visible", "1");

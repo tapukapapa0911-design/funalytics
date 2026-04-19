@@ -713,14 +713,14 @@ input {
   left: 6px;
   top: 6px;
   bottom: 6px;
-  width: calc((100% - 16px) / 3);
+  width: var(--selector-w, calc((100% - 16px) / 3));
   height: auto;
   border-radius: 12px;
   background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(241,245,249,0.96));
   box-shadow: 0 3px 8px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.22);
-  transform: translate3d(var(--selector-shift, 0%), 0, 0);
-  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  will-change: transform;
+  transform: translate3d(var(--selector-x, 0px), 0, 0);
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), width 180ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform, width;
 }
 
 .ranking-filter {
