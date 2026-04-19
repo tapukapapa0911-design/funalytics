@@ -49,17 +49,30 @@ body.light {
 html {
   margin: 0;
   padding: 0;
+  height: auto;
+  min-height: 100%;
   width: 100%;
   overflow-x: hidden;
+  overflow-y: auto;
+}
+
+html:not(.app-ready) #onboarding,
+html:not(.app-ready) #installAppBtn {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
 }
 
 body {
   margin: 0;
-  min-height: 100dvh;
+  height: auto;
+  min-height: 100%;
   display: block;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   width: 100%;
   scroll-behavior: smooth;
+  background-color: #0b0f1a;
   background:
     radial-gradient(circle at 20% 10%, rgba(94, 234, 212, 0.16), transparent 28%),
     radial-gradient(circle at 82% 22%, rgba(139, 92, 246, 0.18), transparent 30%),
@@ -88,7 +101,7 @@ button {
 .phone-shell {
   width: 100%;
   max-width: none;
-  min-height: 100dvh;
+  min-height: 100vh;
   margin: 0 auto;
   padding: 0;
 }
@@ -96,8 +109,9 @@ button {
 .app-frame {
   position: relative;
   width: 100%;
-  height: 100dvh;
-  overflow: hidden;
+  height: auto;
+  min-height: 100vh;
+  overflow: visible;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -403,25 +417,18 @@ body.light .parameter-row {
 
 .app {
   position: relative;
-  height: 100%;
-  min-height: 100dvh;
+  height: auto;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 12px 11px calc(120px + env(safe-area-inset-bottom));
+  overflow: visible;
+  padding: 12px 11px calc(90px + env(safe-area-inset-bottom));
+  scroll-padding-bottom: calc(90px + env(safe-area-inset-bottom));
   transition: opacity var(--motion-base) var(--motion-snap), transform var(--motion-base) var(--motion-snap);
   will-change: transform, opacity;
   transform: translateZ(0);
   backface-visibility: hidden;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;
-  overscroll-behavior: contain;
-}
-
-.app::-webkit-scrollbar {
-  display: none;
+  background: linear-gradient(to bottom, transparent, rgba(11,15,26,0.9) 85%, #0b0f1a 100%);
 }
 
 .app.is-loading {
@@ -814,8 +821,17 @@ input {
   flex: 1 0 auto;
   flex-direction: column;
   gap: 14px;
-  padding-bottom: calc(110px + env(safe-area-inset-bottom));
+  min-height: auto;
+  height: auto;
+  padding-bottom: calc(90px + env(safe-area-inset-bottom));
   overflow: visible;
+}
+
+.screen::after {
+  content: "";
+  display: block;
+  height: 0;
+  flex: 0 0 auto;
 }
 
 .screen.active {
@@ -1693,13 +1709,39 @@ body.light .brand-logo-light {
 }
 
 .settings-list {
-  margin-top: 14px;
+  margin-top: 18px;
   overflow: hidden;
   border-radius: 22px;
 }
 
 #screen-profile {
-  padding-top: 6px;
+  padding-top: 12px;
+}
+
+#screen-profile > * {
+  margin-bottom: 16px;
+}
+
+#screen-profile > *:last-child {
+  margin-bottom: 0;
+}
+
+#screen-profile .profile-card,
+#screen-profile .settings-list {
+  line-height: 1.5;
+}
+
+#screen-profile .setting-row,
+#screen-profile .upload-row,
+#screen-profile .about-item {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+#screen-profile .contact-link strong {
+  margin-top: 8px;
+  word-break: break-word;
+  opacity: 0.9;
 }
 
 .setting-row,
@@ -2197,8 +2239,7 @@ a,
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   box-shadow:
-    0 8px 24px rgba(0,0,0,0.28),
-    inset 0 0 0 1px rgba(255,255,255,0.05);
+    0 -6px 20px rgba(0, 0, 0, 0.25);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2772,7 +2813,60 @@ body.light .bottom-nav {
     display: none !important;
   }
 
-  body.print-category-report #screen-dashboard {
+body.print-category-report #screen-dashboard {
     display: block !important;
   }
+}
+
+/* Final layout precision patch: safe, additive scroll and spacing cleanup */
+html,
+body {
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
+
+body {
+  scrollbar-width: none;
+}
+
+.app {
+  padding-top: 10px;
+  padding-bottom: calc(70px + env(safe-area-inset-bottom));
+  min-height: auto;
+  height: auto;
+}
+
+.app > *:last-child {
+  margin-bottom: 16px;
+}
+
+.screen {
+  padding-bottom: 0;
+  min-height: auto;
+  height: auto;
+}
+
+#screen-profile {
+  gap: 10px;
+}
+
+#screen-profile .profile-card {
+  margin-top: 6px;
+}
+
+#screen-profile .settings-list {
+  margin-top: 6px;
+}
+
+#screen-profile .profile-card h2 {
+  margin-bottom: 8px;
+}
+
+#screen-profile .contact-link strong {
+  word-break: break-word;
 }

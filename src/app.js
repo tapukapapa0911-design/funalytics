@@ -19,8 +19,10 @@ const state = {
 };
 
 let deferredInstallPrompt = null;
+let canShowInstall = false;
 let waitingServiceWorker = null;
 let pendingUpdateReload = false;
+let isAppReady = false;
 const INSTALL_FLOW_KEY = "install_flow_done";
 const ONBOARDING_KEY = "funalytics_onboarding_done";
 const LEGACY_ONBOARDING_KEY = "onboarding_done";
@@ -566,6 +568,14 @@ const syncTabUi = () => {
   document.querySelectorAll(".screen").forEach((screen) => screen.classList.toggle("active", screen.id === `screen-${state.tab}`));
 };
 
+const resetViewScroll = (behavior = "auto") => {
+  const app = $("app");
+  if (app) app.scrollTop = 0;
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+  window.scrollTo({ top: 0, behavior });
+};
+
 const switchTab = (tab, direction = 0) => {
   if (!tab || tab === state.tab) return;
   const nextScreen = $(`screen-${tab}`);
@@ -576,8 +586,7 @@ const switchTab = (tab, direction = 0) => {
   nextScreen.style.setProperty("--tab-shift", `${direction * 12}px`);
   renderChrome();
   renderAll();
-  const app = $("app");
-  if (app) app.scrollTo({ top: 0, behavior: "smooth" });
+  requestAnimationFrame(() => resetViewScroll("auto"));
 };
 
 const renderPicker = () => {
@@ -1144,6 +1153,12 @@ const hasSeenOnboarding = () => localStorage.getItem(ONBOARDING_KEY) === "true" 
 const hasCompletedInstallFlow = () => localStorage.getItem(INSTALL_FLOW_KEY) === "true";
 const shouldShowBrowserInstallCta = () => localStorage.getItem(BROWSER_INSTALL_CTA_KEY) === "true";
 
+const setAppReady = () => {
+  if (isAppReady) return;
+  isAppReady = true;
+  document.documentElement.classList.add("app-ready");
+};
+
 const markOnboardingDone = () => {
   localStorage.setItem(ONBOARDING_KEY, "true");
   localStorage.setItem(LEGACY_ONBOARDING_KEY, "true");
@@ -1255,6 +1270,7 @@ const showOnboardingSlides = () => {
 };
 
 const startExperience = () => {
+  setAppReady();
   if (hasSeenOnboarding()) {
     hideOnboarding();
     enterApp();
@@ -1294,7 +1310,7 @@ const updateInstallButton = () => {
   const button = profileInstallButtonEl();
   if (!button) return;
   const installed = isInstalledApp();
-  if (installed) {
+  if (installed || !canShowInstall || !deferredInstallPrompt) {
     button.hidden = true;
     button.style.display = "none";
     return;
@@ -1588,6 +1604,7 @@ const bindEvents = () => {
       }
     } finally {
       deferredInstallPrompt = null;
+      canShowInstall = false;
       updateInstallButton();
     }
   });
@@ -1609,6 +1626,7 @@ const bindEvents = () => {
       syncTabUi();
       renderChrome();
       renderAll();
+      requestAnimationFrame(() => resetViewScroll("auto"));
     }
   });
 
@@ -1681,12 +1699,14 @@ const bindEvents = () => {
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
     deferredInstallPrompt = event;
+    canShowInstall = true;
     updateInstallButton();
   });
 
   window.addEventListener("appinstalled", () => {
     localStorage.setItem(INSTALL_FLOW_KEY, "true");
     deferredInstallPrompt = null;
+    canShowInstall = false;
     updateInstallButton();
   });
 
@@ -1695,6 +1715,12 @@ const bindEvents = () => {
 };
 
 const init = () => {
+  document.documentElement.classList.remove("app-ready");
+  const onboardingDone = hasSeenOnboarding();
+  if (onboardingDone) {
+    onboardingEl()?.setAttribute("hidden", "true");
+    if (onboardingEl()) onboardingEl().style.display = "none";
+  }
   ensureHashRoute();
   state.tab = routeFromHash();
   setTheme(state.theme);

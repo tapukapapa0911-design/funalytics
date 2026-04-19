@@ -1,4 +1,4 @@
-const CACHE_NAME = "funalytics-v4";
+const CACHE_NAME = "funalytics-v2";
 const APP_SHELL = [
   "/",
   "/index.html",
