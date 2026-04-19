@@ -107,9 +107,9 @@ button {
 
 .splash-screen,
 .onboarding-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 20;
+  z-index: 20000;
 }
 
 .splash-screen {
@@ -156,9 +156,9 @@ body.light .splash-logo-light {
   display: grid;
   place-items: center;
   padding: 16px;
-  background: rgba(7, 10, 18, 0.62);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: rgba(5, 8, 18, 0.88);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
 }
 
 .onboarding-panel {
@@ -168,10 +168,13 @@ body.light .splash-logo-light {
   border-radius: 24px;
   background: var(--surface-strong);
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+  transition: height 260ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: height;
 }
 
 .onboard-container {
   display: flex;
+  align-items: flex-start;
   width: 100%;
   transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
@@ -186,8 +189,9 @@ body.light .splash-logo-light {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 292px;
-  height: 100%;
+  min-height: 0;
+  height: auto;
+  gap: 14px;
 }
 
 .onboarding-step h2 {
@@ -215,6 +219,7 @@ body.light .splash-logo-light {
   margin-top: auto;
   justify-content: flex-end;
   align-items: flex-end;
+  min-height: 46px;
 }
 
 .install-step .button-row {
@@ -737,14 +742,14 @@ input {
   left: 6px;
   top: 6px;
   bottom: 6px;
-  width: calc(33.33% - 8px);
+  width: calc((100% - 12px) / 3);
   height: auto;
-  border-radius: 10px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(241,245,249,0.96));
-  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.22);
+  border-radius: 14px;
   transform: translate3d(var(--selector-shift, 0%), 0, 0);
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: transform;
+  transition:
+    transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, opacity;
 }
 
 .ranking-filter {
@@ -781,9 +786,14 @@ input {
   flex: 1 1 0;
   width: 100%;
   min-width: 0;
-  padding: 0 10px;
+  min-height: 36px;
+  padding: 0 8px;
+  border-radius: 14px;
   text-align: center;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition:
+    color 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .compare-return-filter {
@@ -1087,6 +1097,15 @@ input {
 
 .chart-guide-line {
   pointer-events: none;
+}
+
+.chart-hit,
+.chart-point {
+  cursor: pointer;
+}
+
+.chart-point {
+  opacity: 1;
 }
 
 .quick-actions {
@@ -1680,6 +1699,7 @@ body.light .brand-logo-light {
 }
 
 .setting-row,
+.about-item,
 .upload-row {
   width: 100%;
   display: flex;
@@ -1693,13 +1713,19 @@ body.light .brand-logo-light {
 }
 
 .setting-row:last-child,
+.about-item:last-child,
 .upload-row:last-child {
   border-bottom: 0;
 }
 
 .setting-row span,
+.about-item span,
 .upload-row span {
   color: var(--muted);
+}
+
+.about-item {
+  cursor: pointer;
 }
 
 .install-help {

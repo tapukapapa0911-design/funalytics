@@ -23,9 +23,11 @@ let waitingServiceWorker = null;
 let pendingUpdateReload = false;
 const INSTALL_FLOW_KEY = "install_flow_done";
 const ONBOARDING_KEY = "onboarding_done";
+const BROWSER_INSTALL_CTA_KEY = "browser_install_cta_enabled";
 const ONBOARDING_STEPS = 5;
 const LAST_ONBOARDING_INDEX = 4;
 let currentOnboardingIndex = 0;
+let previousHorizonValue = state.horizon;
 const MODAL_ANIMATION_MS = 220;
 
 const $ = (id) => document.getElementById(id);
@@ -36,7 +38,7 @@ const modalBackdrop = () => $("global-modal-backdrop");
 const onboardingEl = () => $("onboarding");
 const onboardContainerEl = () => $("onboardContainer");
 const splashScreenEl = () => $("splashScreen");
-const installButtonEl = () => $("installBtn");
+const profileInstallButtonEl = () => $("installAppBtn");
 
 const ensureHashRoute = () => {
   if (!window.location.hash) {
@@ -414,6 +416,7 @@ const applyOptionValue = (type, value, direction = 0) => {
     return;
   }
   if (type === "horizon") {
+    previousHorizonValue = state.horizon;
     state.horizon = value;
     renderAll();
     syncControlState();
@@ -645,11 +648,14 @@ const updateSegmentedPill = (group) => {
     group.style.setProperty("--selector-shift", `${activeIndex * 100}%`);
     return;
   }
-  group.style.setProperty("--pill-visible", "1");
-  group.style.setProperty("--pill-x", `${active.offsetLeft - group.scrollLeft}px`);
-  group.style.setProperty("--pill-y", `${active.offsetTop}px`);
-  group.style.setProperty("--pill-w", `${active.offsetWidth}px`);
-  group.style.setProperty("--pill-h", `${active.offsetHeight}px`);
+  const setPillFrame = (button) => {
+    group.style.setProperty("--pill-visible", "1");
+    group.style.setProperty("--pill-x", `${button.offsetLeft - group.scrollLeft}px`);
+    group.style.setProperty("--pill-y", `${button.offsetTop}px`);
+    group.style.setProperty("--pill-w", `${button.offsetWidth}px`);
+    group.style.setProperty("--pill-h", `${button.offsetHeight}px`);
+  };
+  setPillFrame(active);
 };
 
 const updateAllSegmentedPills = () => {
@@ -776,7 +782,7 @@ const renderMultiLineSvg = (target, series, labels, tooltipEl = null) => {
   const lines = series.map((item) => {
     const points = item.values.map((value, index) => value === null ? null : `${x(index)},${y(value)}`).filter(Boolean).join(" ");
     const isPrimary = item === series[0];
-    const dots = item.values.map((value, index) => value === null ? "" : `<circle cx="${x(index)}" cy="${y(value)}" r="${isPrimary ? 4 : 3}" fill="${item.color}"><title>${item.name}: ${value.toFixed(2)}%</title></circle>`).join("");
+    const dots = item.values.map((value, index) => value === null ? "" : `<circle class="chart-point${isPrimary ? " primary" : ""}" data-chart-index="${index}" data-series-name="${escapeHtml(item.name)}" cx="${x(index)}" cy="${y(value)}" r="${isPrimary ? 4.5 : 3.5}" fill="${item.color}"><title>${item.name}: ${value.toFixed(2)}%</title></circle>`).join("");
     return `<polyline class="chart-line" points="${points}" fill="none" stroke="${item.color}" stroke-width="${isPrimary ? 4 : 2.5}" stroke-linecap="round" stroke-linejoin="round"/>${dots}`;
   }).join("");
   const labelsSvg = labels.map((label, index) => `<text x="${x(index)}" y="${height - 8}" text-anchor="middle" fill="currentColor" opacity=".58" font-size="10" font-weight="800">${escapeHtml(label)}</text>`).join("");
@@ -805,6 +811,12 @@ const renderMultiLineSvg = (target, series, labels, tooltipEl = null) => {
       zone.addEventListener("click", () => showTooltip(Number(zone.dataset.chartIndex)));
       zone.addEventListener("touchstart", () => showTooltip(Number(zone.dataset.chartIndex)), { passive: true });
     });
+    target.querySelectorAll(".chart-point").forEach((point) => {
+      const activatePoint = () => showTooltip(Number(point.dataset.chartIndex));
+      point.addEventListener("mouseenter", activatePoint);
+      point.addEventListener("click", activatePoint);
+      point.addEventListener("touchstart", activatePoint, { passive: true });
+    });
     if (svg) {
       const handlePointerAt = (clientX) => {
         const rect = svg.getBoundingClientRect();
@@ -829,16 +841,23 @@ const renderFunds = () => {
   const funds = visibleFunds();
   const rankingFilterMount = $("rankingFilterMount");
   if (rankingFilterMount) {
-    rankingFilterMount.innerHTML = state.sort === "return" ? `
-      <div class="quick-filter-row ranking-filter selector-container" aria-label="Ranking return horizon">
-        <button class="${state.horizon === "oneYear" ? "active" : ""}" data-horizon="oneYear">1Y</button>
-        <button class="${state.horizon === "threeYear" ? "active" : ""}" data-horizon="threeYear">3Y</button>
-        <button class="${state.horizon === "fiveYear" ? "active" : ""}" data-horizon="fiveYear">5Y</button>
-      </div>
-    ` : "";
-    rankingFilterMount.querySelectorAll("[data-horizon]").forEach((button) => {
-      button.addEventListener("click", () => applyOptionValue("horizon", button.dataset.horizon, 0));
-    });
+    if (state.sort === "return") {
+      let filter = rankingFilterMount.querySelector(".ranking-filter");
+      if (!filter) {
+        rankingFilterMount.innerHTML = `
+          <div class="quick-filter-row ranking-filter selector-container" aria-label="Ranking return horizon">
+            <button class="${state.horizon === "oneYear" ? "active" : ""}" data-horizon="oneYear">1Y</button>
+            <button class="${state.horizon === "threeYear" ? "active" : ""}" data-horizon="threeYear">3Y</button>
+            <button class="${state.horizon === "fiveYear" ? "active" : ""}" data-horizon="fiveYear">5Y</button>
+          </div>
+        `;
+        rankingFilterMount.querySelectorAll("[data-horizon]").forEach((button) => {
+          button.addEventListener("click", () => applyOptionValue("horizon", button.dataset.horizon, 0));
+        });
+      }
+    } else if (rankingFilterMount.innerHTML.trim()) {
+      rankingFilterMount.innerHTML = "";
+    }
   }
   if (!funds.length) {
     $("fundList").innerHTML = `<div class="list-note">${escapeHtml(`No funds are available in ${state.category} for the current search.`)}</div>`;
@@ -1029,6 +1048,7 @@ const renderCompare = () => {
     $("compareContent").innerHTML = `<article class="compare-card full-span"><p class="eyebrow">Compare</p><h3>Comparison unavailable</h3><p class="muted">Select a category with at least two funds to unlock cross-fund comparison.</p></article>`;
     return;
   }
+  const compareKey = `${fundA.id}|${fundB.id}|${state.category}`;
   const activeA = fundA[state.horizon];
   const activeB = fundB[state.horizon];
   const leader = (activeA || 0) === (activeB || 0)
@@ -1043,7 +1063,17 @@ const renderCompare = () => {
     ["Risk indicator", riskLabel(fundA), riskLabel(fundB)],
     ["Trend", fundA.trend, fundB.trend]
   ];
-  $("compareContent").innerHTML = `
+  const compareContent = $("compareContent");
+  const existingKey = compareContent?.dataset.compareKey;
+  if (compareContent && existingKey === compareKey && compareContent.querySelector(".compare-return-filter")) {
+    const quickRead = $("compareLeaderText");
+    const horizonHeading = $("compareHorizonHeading");
+    if (quickRead) quickRead.textContent = leader;
+    if (horizonHeading) horizonHeading.textContent = `${horizonLabel()} return comparison`;
+    renderVerticalReturnBarChart("comparePageChart", [fundA, fundB]);
+    return;
+  }
+  compareContent.innerHTML = `
     <article class="compare-card">
       <p class="eyebrow">Fund A</p>
       <h3>${escapeHtml(fundA.fundName)}</h3>
@@ -1064,14 +1094,14 @@ const renderCompare = () => {
     </article>
     <article class="compare-card full-span">
       <p class="eyebrow">Quick read</p>
-      <h3>${escapeHtml(leader)}</h3>
+      <h3 id="compareLeaderText">${escapeHtml(leader)}</h3>
       <p class="muted">Use the return selector below to switch between 1Y, 3Y, and 5Y. The comparison stays locked to ${escapeHtml(state.category)} so the read stays category-accurate.</p>
     </article>
     <article class="compare-card full-span">
       <div class="section-head">
         <div>
           <p class="eyebrow">Return comparison</p>
-          <h3>${horizonLabel()} return comparison</h3>
+          <h3 id="compareHorizonHeading">${horizonLabel()} return comparison</h3>
         </div>
       </div>
         <div class="quick-filter-row compare-return-filter selector-container">
@@ -1082,8 +1112,9 @@ const renderCompare = () => {
       <div id="comparePageChart" class="bar-chart"></div>
     </article>
   `;
+  compareContent.dataset.compareKey = compareKey;
   renderVerticalReturnBarChart("comparePageChart", [fundA, fundB]);
-  document.querySelectorAll("#compareContent [data-horizon]").forEach((button) => {
+  compareContent.querySelectorAll("[data-horizon]").forEach((button) => {
     button.addEventListener("click", () => {
       applyOptionValue("horizon", button.dataset.horizon, 0);
     });
@@ -1093,12 +1124,24 @@ const renderCompare = () => {
 const renderProfile = () => {
   const stored = localStorage.getItem("fundpulse-upload-name");
   $("uploadStatus").textContent = stored ? stored.slice(0, 22) : "Choose .xlsx";
+  const installButton = profileInstallButtonEl();
+  const installValue = $("installStatus");
+  const installed = isInstalledApp();
+  if (installValue) {
+    installValue.textContent = installed ? "Installed" : "Tap to install";
+  }
+  if (installButton) {
+    const available = !installed && Boolean(deferredInstallPrompt);
+    installButton.hidden = !available;
+    installButton.style.display = available ? "" : "none";
+  }
 };
 
 const isStandaloneMode = () => window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
 const isInstalledApp = () => window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
 const hasSeenOnboarding = () => localStorage.getItem(ONBOARDING_KEY) === "true";
 const hasCompletedInstallFlow = () => localStorage.getItem(INSTALL_FLOW_KEY) === "true";
+const shouldShowBrowserInstallCta = () => localStorage.getItem(BROWSER_INSTALL_CTA_KEY) === "true";
 
 const showMainApp = () => {
   $("skeleton")?.classList.add("hide");
@@ -1116,13 +1159,20 @@ const loadDashboard = () => {
 };
 
 const enterApp = () => {
-  const floatingInstall = installButtonEl();
-  const shouldShowInstallCta = !isInstalledApp();
-  if (floatingInstall) {
-    floatingInstall.hidden = !shouldShowInstallCta;
-    floatingInstall.style.display = shouldShowInstallCta ? "inline-flex" : "none";
-  }
   loadDashboard();
+  updateInstallButton();
+};
+
+const updateOnboardingPanelHeight = (index = currentOnboardingIndex) => {
+  const panel = document.querySelector(".onboarding-panel");
+  const container = onboardContainerEl();
+  if (!panel || !container) return;
+  const steps = [...container.querySelectorAll(".onboarding-step")];
+  const activeStep = steps[Math.max(0, Math.min(index, steps.length - 1))];
+  if (!activeStep) return;
+  requestAnimationFrame(() => {
+    panel.style.height = `${activeStep.scrollHeight}px`;
+  });
 };
 
 const updateOnboardingPosition = (index) => {
@@ -1131,6 +1181,7 @@ const updateOnboardingPosition = (index) => {
   const safeIndex = Math.max(0, Math.min(index, LAST_ONBOARDING_INDEX));
   currentOnboardingIndex = safeIndex;
   container.style.transform = `translateX(-${safeIndex * 100}%)`;
+  updateOnboardingPanelHeight(safeIndex);
   const finishButton = $("letsGoBtn") || $("onboardingFinish");
   if (finishButton) {
     finishButton.textContent = currentOnboardingIndex === LAST_ONBOARDING_INDEX ? "Let’s Go" : "Next";
@@ -1153,6 +1204,9 @@ const hideOnboarding = () => {
 const finishOnboarding = () => {
   localStorage.setItem(ONBOARDING_KEY, "true");
   localStorage.setItem(INSTALL_FLOW_KEY, "true");
+  if (!isInstalledApp()) {
+    localStorage.setItem(BROWSER_INSTALL_CTA_KEY, "true");
+  }
   hideOnboarding();
   enterApp();
 };
@@ -1177,6 +1231,7 @@ const showInstallCard = () => {
   overlay.setAttribute("aria-hidden", "false");
   currentOnboardingIndex = 0;
   updateOnboardingPosition(0);
+  updateInstallButton();
 };
 
 const showOnboardingSlides = () => {
@@ -1190,6 +1245,7 @@ const showOnboardingSlides = () => {
   overlay.setAttribute("aria-hidden", "false");
   currentOnboardingIndex = 1;
   updateOnboardingPosition(1);
+  updateInstallButton();
 };
 
 const startExperience = () => {
@@ -1228,18 +1284,21 @@ const setUpdateBanner = (visible) => {
 };
 
 const updateInstallButton = () => {
-  const button = installButtonEl();
+  const button = profileInstallButtonEl();
   if (!button) return;
   const installed = isInstalledApp();
-  if (!hasCompletedInstallFlow() || installed) {
+  if (installed) {
     button.hidden = true;
     button.style.display = "none";
-    button.classList.remove("visible");
     return;
   }
-  button.hidden = false;
-  button.style.display = "inline-flex";
-  button.classList.toggle("visible", Boolean(deferredInstallPrompt));
+  const available = Boolean(deferredInstallPrompt);
+  button.hidden = !available;
+  button.style.display = available ? "" : "none";
+  const installValue = $("installStatus");
+  if (installValue) {
+    installValue.textContent = "Tap to install";
+  }
 };
 
 const openDetail = (fundId) => {
@@ -1284,11 +1343,11 @@ const openDetail = (fundId) => {
   if (fundHistory.length) {
     const validScorePoints = fundHistory.filter((point) => typeof point?.score === "number");
     if (validScorePoints.length > 1) {
-      renderMultiLineSvg($("detailLine"), [{ name: "Dashboard score", values: validScorePoints.map((point) => point.score), color: "#0F766E" }], validScorePoints.map((point) => (point.date || "Current").slice(-5)));
-      $("detailHistoryState").textContent = validScorePoints.length <= 3 ? "Limited historical data" : "Historical series loaded";
+      renderMultiLineSvg($("detailLine"), [{ name: "Dashboard score", values: validScorePoints.map((point) => point.score), color: "#0F766E" }], validScorePoints.map((point) => (point.date || "Current").slice(-5)), $("detailHistoryState"));
+      $("detailHistoryState").hidden = false;
     } else if (validScorePoints.length === 1) {
       const onlyPoint = validScorePoints[0];
-      renderMultiLineSvg($("detailLine"), [{ name: "Dashboard score", values: [onlyPoint.score], color: "#0F766E" }], [(onlyPoint.date || "Latest").slice(-5)]);
+      renderMultiLineSvg($("detailLine"), [{ name: "Dashboard score", values: [onlyPoint.score], color: "#0F766E" }], [(onlyPoint.date || "Latest").slice(-5)], $("detailHistoryState"));
       $("detailHistoryState").textContent = "Limited historical data";
     } else {
       $("detailLine").innerHTML = `<div class="empty-chart">Historical score data is unavailable for this fund.</div>`;
@@ -1501,11 +1560,30 @@ const bindEvents = () => {
         updateInstallButton();
       }
     }
+    localStorage.removeItem(BROWSER_INSTALL_CTA_KEY);
     localStorage.setItem(INSTALL_FLOW_KEY, "true");
     enterApp();
   });
 
-  $("onboardingSkipInstall")?.addEventListener("click", showOnboardingSlides);
+  $("onboardingSkipInstall")?.addEventListener("click", () => {
+    localStorage.removeItem(BROWSER_INSTALL_CTA_KEY);
+    showOnboardingSlides();
+  });
+  profileInstallButtonEl()?.addEventListener("click", async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    try {
+      const choice = await deferredInstallPrompt.userChoice;
+      if (choice?.outcome === "accepted") {
+        const installValue = $("installStatus");
+        if (installValue) installValue.textContent = "Installed";
+        updateInstallButton();
+      }
+    } finally {
+      deferredInstallPrompt = null;
+      updateInstallButton();
+    }
+  });
   document.querySelectorAll(".onboarding-next").forEach((button) => {
     button.addEventListener("click", handleOnboardingNext);
   });
