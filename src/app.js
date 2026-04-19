@@ -1,5 +1,6 @@
 ﻿let appData = loadStoredData() || window.FUND_APP_DATA;
 
+// Funalytics build refresh: 2026-04-19 evening patch
 const APP_NAME = "Funalytics";
 const APP_DESCRIPTION = "Funalytics is a smart mutual fund analytics platform that transforms Excel-based data into clear rankings, performance insights, and decision-ready dashboards.";
 
@@ -1281,6 +1282,10 @@ const startExperience = () => {
     showOnboardingSlides();
     return;
   }
+  if (hasCompletedInstallFlow()) {
+    showOnboardingSlides();
+    return;
+  }
   showInstallCard();
 };
 
@@ -1585,12 +1590,13 @@ const bindEvents = () => {
     }
     localStorage.removeItem(BROWSER_INSTALL_CTA_KEY);
     localStorage.setItem(INSTALL_FLOW_KEY, "true");
-    enterApp();
+    showOnboardingSlides();
   });
 
   $("onboardingSkipInstall")?.addEventListener("click", () => {
     localStorage.removeItem(BROWSER_INSTALL_CTA_KEY);
-    finishOnboarding();
+    localStorage.setItem(INSTALL_FLOW_KEY, "true");
+    showOnboardingSlides();
   });
   profileInstallButtonEl()?.addEventListener("click", async () => {
     if (!deferredInstallPrompt) return;
