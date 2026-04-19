@@ -32,10 +32,21 @@ const modalRoot = () => $("global-modal");
 const modalContent = () => $("global-modal-content");
 const modalCard = () => $("global-modal-card");
 const modalBackdrop = () => $("global-modal-backdrop");
-const onboardingEl = () => $("onboardingModal") || $("onboarding");
+const onboardingEl = () => $("onboarding");
 const onboardContainerEl = () => $("onboardContainer");
 const splashScreenEl = () => $("splashScreen");
 const installButtonEl = () => $("installBtn") || $("installButton");
+
+const ensureHashRoute = () => {
+  if (!window.location.hash) {
+    window.location.hash = "#dashboard";
+  }
+};
+
+const routeFromHash = () => {
+  const raw = String(window.location.hash || "").replace(/^#/, "").trim();
+  return ["dashboard", "funds", "insights", "compare", "profile"].includes(raw) ? raw : "dashboard";
+};
 
 function loadStoredData() {
   try {
@@ -555,6 +566,7 @@ const switchTab = (tab, direction = 0) => {
   const nextScreen = $(`screen-${tab}`);
   if (!nextScreen) return;
   state.tab = tab;
+  window.location.hash = `#${tab}`;
   syncTabUi();
   nextScreen.style.setProperty("--tab-shift", `${direction * 12}px`);
   renderChrome();
@@ -1090,6 +1102,16 @@ const showMainApp = () => {
   $("app")?.classList.remove("is-loading");
 };
 
+const loadDashboard = () => {
+  state.tab = "dashboard";
+  ensureHashRoute();
+  window.location.hash = "#dashboard";
+  syncTabUi();
+  renderAll();
+  renderChrome();
+  showMainApp();
+};
+
 const updateOnboardingPosition = (index) => {
   const container = onboardContainerEl();
   if (!container) return;
@@ -1111,19 +1133,15 @@ const hideOnboarding = () => {
   overlay.hidden = true;
   overlay.style.display = "none";
   overlay.setAttribute("aria-hidden", "true");
+  overlay.remove();
   showMainApp();
 };
 
 const finishOnboarding = () => {
   localStorage.setItem(ONBOARDING_KEY, "true");
   localStorage.setItem("hasSeenOnboarding", "true");
-  window.location.hash = "#dashboard";
-  if (state.tab !== "dashboard") {
-    state.tab = "dashboard";
-    syncTabUi();
-    renderAll();
-  }
   hideOnboarding();
+  loadDashboard();
 };
 
 const handleOnboardingNext = () => {
@@ -1150,7 +1168,7 @@ const showOnboarding = () => {
 
 const startExperience = () => {
   if (hasSeenOnboarding()) {
-    hideOnboarding();
+    loadDashboard();
     return;
   }
   showOnboarding();
@@ -1462,6 +1480,31 @@ const bindEvents = () => {
     if (event.key === "Escape") closeAllOverlays();
   });
 
+  window.addEventListener("hashchange", () => {
+    const nextTab = routeFromHash();
+    if (nextTab !== state.tab) {
+      state.tab = nextTab;
+      syncTabUi();
+      renderChrome();
+      renderAll();
+    }
+  });
+
+  window.addEventListener("load", () => {
+    const app = $("app");
+    if (!window.location.hash) {
+      window.location.hash = "#dashboard";
+    }
+    if (app && !app.querySelector(".screen.active")) {
+      loadDashboard();
+      return;
+    }
+    const activeScreen = document.querySelector(".screen.active");
+    if (activeScreen && !activeScreen.children.length) {
+      loadDashboard();
+    }
+  });
+
   $("excelUpload").addEventListener("change", (event) => handleUpload(event.target.files[0]));
   installButtonEl()?.addEventListener("click", async () => {
     if (!deferredInstallPrompt) return;
@@ -1498,18 +1541,20 @@ const bindEvents = () => {
     navigator.serviceWorker.register("/service-worker.js").then((registration) => {
       if (registration.waiting) {
         waitingServiceWorker = registration.waiting;
-        setUpdateBanner(true);
+        waitingServiceWorker.postMessage({ type: "SKIP_WAITING" });
       }
-      registration.onupdatefound = () => {
+      registration.addEventListener("updatefound", () => {
         const installing = registration.installing;
         if (!installing) return;
         installing.addEventListener("statechange", () => {
           if (installing.state === "installed" && navigator.serviceWorker.controller) {
             waitingServiceWorker = registration.waiting || installing;
-            setUpdateBanner(true);
+            if (registration.waiting) {
+              registration.waiting.postMessage({ type: "SKIP_WAITING" });
+            }
           }
         });
-      };
+      });
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         const reloadKey = "funalytics-sw-reload";
         if (!sessionStorage.getItem(reloadKey)) {
@@ -1537,6 +1582,8 @@ const bindEvents = () => {
 };
 
 const init = () => {
+  ensureHashRoute();
+  state.tab = routeFromHash();
   setTheme(state.theme);
   bindEvents();
   updateInstallButton();
