@@ -5,12 +5,65 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#070A12" />
     <title>Funalytics - Mutual Fund Analytics Dashboard</title>
-    <link rel="manifest" href="manifest.json" />
+    <link rel="manifest" href="/manifest.json?v=2" />
+    <link rel="apple-touch-icon" href="/icons/light-logo.png" />
     <link rel="stylesheet" href="src/styles.css" />
   </head>
   <body>
     <main class="phone-shell" aria-label="Funalytics mobile app">
       <section class="app-frame">
+        <div id="splashScreen" class="splash-screen" aria-hidden="true">
+          <div class="splash-logo-shell">
+            <img class="splash-logo splash-logo-dark" src="icons/light-logo.png" alt="Funalytics" />
+            <img class="splash-logo splash-logo-light" src="icons/dark-logo.png" alt="Funalytics" />
+          </div>
+        </div>
+        <div id="onboarding" class="onboarding-overlay" hidden aria-hidden="true">
+          <div class="onboarding-panel">
+            <div class="onboard-container" id="onboardContainer">
+              <section class="onboarding-step">
+                <p class="eyebrow">Get started</p>
+                <h2>Install Funalytics</h2>
+                <p class="muted">Add the app to your home screen for a smoother, app-like experience.</p>
+                <div class="onboarding-actions">
+                  <button class="primary-action" id="onboardingInstallButton" type="button">Install</button>
+                  <button class="secondary-action" id="onboardingSkipInstall" type="button">Skip</button>
+                </div>
+              </section>
+              <section class="onboarding-step">
+                <h2>Welcome to Funalytics</h2>
+                <p class="muted">Clear rankings, cleaner comparisons, and a dashboard built for quick fund decisions.</p>
+                <div class="onboarding-actions single">
+                  <button class="primary-action onboarding-next" id="onboardingWelcomeNext" type="button">Next</button>
+                </div>
+              </section>
+              <section class="onboarding-step">
+                <h2>Track category leaders</h2>
+                <p class="muted">See the strongest funds in each category with score, trend, and return context in one view.</p>
+                <div class="onboarding-actions">
+                  <button class="secondary-action onboarding-skip-all" type="button">Skip</button>
+                  <button class="primary-action onboarding-next" type="button">Next</button>
+                </div>
+              </section>
+              <section class="onboarding-step">
+                <h2>Compare funds faster</h2>
+                <p class="muted">Switch horizons quickly and compare two funds without losing the category context.</p>
+                <div class="onboarding-actions">
+                  <button class="secondary-action onboarding-skip-all" type="button">Skip</button>
+                  <button class="primary-action onboarding-next" type="button">Next</button>
+                </div>
+              </section>
+              <section class="onboarding-step onboarding-last-screen">
+                <h2 class="title">Make Smarter Fund Decisions</h2>
+                <p class="muted description">All your rankings, insights, and comparisons in one place. Streamlined for clarity, optimized for speed, and designed to help you decide with confidence.</p>
+                <div class="onboarding-actions">
+                  <button class="secondary-action onboarding-skip-all" type="button">Skip</button>
+                  <button class="primary-action onboarding-next" id="letsGoBtn" type="button">Let’s Go</button>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
         <div id="skeleton" class="skeleton-screen">
           <div class="skeleton hero"></div>
           <div class="skeleton-row">
@@ -140,11 +193,7 @@
               <button class="chip" data-sort="return">Return</button>
               <button class="chip" data-sort="consistency">Consistency</button>
             </div>
-            <div class="quick-filter-row ranking-filter" aria-label="Ranking return horizon">
-              <button class="active" data-horizon="oneYear">1Y</button>
-              <button data-horizon="threeYear">3Y</button>
-              <button data-horizon="fiveYear">5Y</button>
-            </div>
+            <div id="rankingFilterMount"></div>
             <div id="fundList" class="fund-list"></div>
           </section>
 
@@ -203,10 +252,6 @@
                 <span>Theme</span>
                 <strong id="profileThemeValue">Dark</strong>
               </button>
-              <div class="install-help" id="installHelp" hidden>
-                <strong>Install on your phone</strong>
-                <p id="installHelpCopy">Open this app in a supported browser to install it.</p>
-              </div>
               <label class="upload-row">
                 <span>Upload updated Excel</span>
                 <strong id="uploadStatus">Choose .xlsx</strong>
@@ -220,6 +265,10 @@
                 <span>Insights &amp; Methodology</span>
                 <strong>View Details</strong>
               </button>
+              <a class="setting-row contact-link" href="mailto:ameenmkhan2004@gmail.com">
+                <span>Contact Developer</span>
+                <strong>ameenmkhan2004@gmail.com</strong>
+              </a>
             </div>
             <footer class="credits">Developed by Ameen Khan</footer>
           </section>
@@ -228,7 +277,7 @@
         <button class="update-banner" id="updateBanner" type="button" hidden aria-label="Refresh to latest version">
           New version ready — Tap to refresh
         </button>
-        <button class="install-fab" id="installButton" type="button" hidden aria-label="Install Funalytics">
+        <button class="install-fab" id="installBtn" type="button" hidden aria-label="Install Funalytics" data-install-btn="true">
           <span class="install-fab-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
               <path d="M12 4v9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>

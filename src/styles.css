@@ -45,11 +45,19 @@ body.light {
   box-sizing: border-box;
 }
 
+html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   min-height: 100dvh;
   display: block;
   overflow: hidden;
+  width: 100%;
   scroll-behavior: smooth;
   background:
     radial-gradient(circle at 20% 10%, rgba(94, 234, 212, 0.16), transparent 28%),
@@ -94,6 +102,131 @@ button {
   background: transparent;
   box-shadow: none;
   backdrop-filter: none;
+}
+
+.splash-screen,
+.onboarding-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+}
+
+.splash-screen {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--bg), var(--bg-2));
+  opacity: 1;
+  transition: opacity 300ms var(--motion-snap), visibility 300ms var(--motion-snap);
+}
+
+.splash-screen.hide {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.splash-logo-shell {
+  width: 116px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: transparent;
+  animation: splashPop 300ms var(--motion-snap);
+}
+
+.splash-logo {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.splash-logo-light {
+  display: none;
+}
+
+body.light .splash-logo-dark {
+  display: none;
+}
+
+body.light .splash-logo-light {
+  display: block;
+}
+
+.onboarding-overlay {
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(7, 10, 18, 0.62);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.onboarding-panel {
+  width: min(100%, 420px);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--surface-strong);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+}
+
+.onboard-container {
+  display: flex;
+  width: 100%;
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.onboarding-step {
+  flex: 0 0 100%;
+  padding: 32px 22px 22px;
+}
+
+.onboarding-step h2 {
+  margin: 0 0 10px;
+  font-size: 28px;
+  line-height: 1.05;
+}
+
+.onboarding-step .muted {
+  animation: fadeUp 300ms ease;
+}
+
+.onboarding-step h2 {
+  animation: fadeUp 300ms ease;
+}
+
+.onboarding-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.onboarding-actions.single {
+  justify-content: flex-end;
+}
+
+.primary-action,
+.secondary-action {
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: 14px;
+  font-weight: 800;
+}
+
+.primary-action:active,
+.secondary-action:active {
+  transform: scale(0.96);
+}
+
+.primary-action {
+  background: linear-gradient(135deg, var(--accent), var(--blue));
+  color: #031016;
+}
+
+.secondary-action {
+  background: rgba(127, 127, 127, 0.12);
+  color: var(--text);
+  border: 1px solid var(--border);
 }
 
 .global-modal {
@@ -247,7 +380,7 @@ body.light .parameter-row {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 16px 12px calc(var(--nav-height) + var(--nav-float-gap) + 28px);
+  padding: 12px 11px calc(var(--nav-height) + var(--nav-float-gap) + 28px);
   transition: opacity var(--motion-base) var(--motion-snap), transform var(--motion-base) var(--motion-snap);
   will-change: transform, opacity;
   transform: translateZ(0);
@@ -562,11 +695,32 @@ input {
 }
 
 .dashboard-return-tabs,
-.ranking-filter {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.ranking-filter,
+.compare-return-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 6px;
   overflow: visible;
+  padding: 8px;
+  min-height: 48px;
+  box-sizing: border-box;
+}
+
+.dashboard-return-tabs::before,
+.ranking-filter::before,
+.compare-return-filter::before {
+  left: 6px;
+  top: 6px;
+  bottom: 6px;
+  width: calc((100% - 16px) / 3);
+  height: auto;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(241,245,249,0.96));
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.22);
+  transform: translate3d(var(--selector-shift, 0%), 0, 0);
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
 }
 
 .ranking-filter {
@@ -596,10 +750,15 @@ input {
 }
 
 .dashboard-return-tabs button,
-.ranking-filter button {
+.ranking-filter button,
+.compare-return-filter button {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 0;
   width: 100%;
   min-width: 0;
   padding: 0 10px;
+  text-align: center;
 }
 
 #heroDate {
@@ -1440,8 +1599,8 @@ svg {
   display: grid;
   justify-items: center;
   text-align: center;
-  gap: 10px;
-  padding: 24px 16px;
+  gap: 8px;
+  padding: 20px 16px 16px;
   border-radius: var(--radius);
 }
 
@@ -1456,7 +1615,7 @@ svg {
   height: auto;
   display: block;
   margin: 0 auto;
-  border-radius: 20px;
+  border-radius: 16px;
   overflow: hidden;
   background: transparent;
 }
@@ -1575,6 +1734,13 @@ body.light .brand-logo-light {
   inset: 0;
   display: block;
   background: transparent;
+  text-decoration: none;
+  color: inherit;
+}
+
+a,
+.contact-link {
+  text-decoration: none !important;
 }
 
 .picker-panel {
@@ -2065,6 +2231,25 @@ body.light .install-fab {
   pointer-events: auto;
 }
 
+.onboard-container {
+  display: flex;
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.onboarding-last-screen {
+  animation: scaleIn 300ms ease;
+}
+
+.onboarding-last-screen .title {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.onboarding-last-screen .description {
+  opacity: 0.8;
+  line-height: 1.5;
+}
+
 body.light .update-banner {
   background: rgba(255, 255, 255, 0.92);
   color: #0f172a;
@@ -2075,6 +2260,39 @@ body.light .update-banner {
   0%,
   100% { box-shadow: 0 18px 34px rgba(0, 0, 0, 0.18); }
   50% { box-shadow: 0 18px 38px rgba(94, 234, 212, 0.28); }
+}
+
+@keyframes splashPop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateZ(0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateZ(0);
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 body.light .bottom-nav {
@@ -2381,11 +2599,11 @@ body.light .bottom-nav {
       border-radius: 0;
     }
 
-.app {
-  position: relative;
-  height: 100%;
-    padding: 28px 28px 116px;
-  }
+  .app {
+    position: relative;
+    height: 100%;
+      padding: 24px 12px 116px;
+    }
 
   .kpi-grid {
     grid-template-columns: 1.4fr 1fr 1fr 1fr 1fr;
@@ -2466,14 +2684,14 @@ body.light .bottom-nav {
   .phone-shell,
   .app-frame,
   .app {
-    width: auto;
-    height: auto;
-    min-height: auto;
-    overflow: visible;
-    box-shadow: none;
-    border: 0;
-    padding: 0;
-  }
+      width: 100%;
+      height: 100%;
+      min-height: 100%;
+      overflow: visible;
+      box-shadow: none;
+      border: 0;
+      padding: 0;
+    }
 
   .bottom-nav,
   .topbar .icon-button,

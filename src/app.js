@@ -21,6 +21,10 @@ const state = {
 let deferredInstallPrompt = null;
 let waitingServiceWorker = null;
 let pendingUpdateReload = false;
+const ONBOARDING_KEY = "onboarding_complete";
+const ONBOARDING_STEPS = 5;
+const LAST_ONBOARDING_INDEX = 4;
+let currentOnboardingIndex = 0;
 const MODAL_ANIMATION_MS = 220;
 
 const $ = (id) => document.getElementById(id);
@@ -28,6 +32,10 @@ const modalRoot = () => $("global-modal");
 const modalContent = () => $("global-modal-content");
 const modalCard = () => $("global-modal-card");
 const modalBackdrop = () => $("global-modal-backdrop");
+const onboardingEl = () => $("onboardingModal") || $("onboarding");
+const onboardContainerEl = () => $("onboardContainer");
+const splashScreenEl = () => $("splashScreen");
+const installButtonEl = () => $("installBtn") || $("installButton");
 
 function loadStoredData() {
   try {
@@ -618,6 +626,12 @@ const updateSegmentedPill = (group) => {
     group.style.setProperty("--pill-visible", "0");
     return;
   }
+  if (group.matches(".dashboard-return-tabs, .ranking-filter, .compare-return-filter") && buttons.length === 3) {
+    const activeIndex = Math.max(0, buttons.indexOf(active));
+    group.style.setProperty("--pill-visible", "1");
+    group.style.setProperty("--selector-shift", `${activeIndex * 100}%`);
+    return;
+  }
   group.style.setProperty("--pill-visible", "1");
   group.style.setProperty("--pill-x", `${active.offsetLeft - group.scrollLeft}px`);
   group.style.setProperty("--pill-y", `${active.offsetTop}px`);
@@ -800,10 +814,18 @@ const renderMultiLineSvg = (target, series, labels, tooltipEl = null) => {
 const renderFunds = () => {
   const query = state.query.trim();
   const funds = visibleFunds();
-  const rankingFilter = document.querySelector(".ranking-filter");
-  if (rankingFilter) {
-    rankingFilter.classList.toggle("is-collapsed", state.sort !== "return");
-    rankingFilter.setAttribute("aria-hidden", state.sort !== "return" ? "true" : "false");
+  const rankingFilterMount = $("rankingFilterMount");
+  if (rankingFilterMount) {
+    rankingFilterMount.innerHTML = state.sort === "return" ? `
+      <div class="quick-filter-row ranking-filter selector-container" aria-label="Ranking return horizon">
+        <button class="${state.horizon === "oneYear" ? "active" : ""}" data-horizon="oneYear">1Y</button>
+        <button class="${state.horizon === "threeYear" ? "active" : ""}" data-horizon="threeYear">3Y</button>
+        <button class="${state.horizon === "fiveYear" ? "active" : ""}" data-horizon="fiveYear">5Y</button>
+      </div>
+    ` : "";
+    rankingFilterMount.querySelectorAll("[data-horizon]").forEach((button) => {
+      button.addEventListener("click", () => applyOptionValue("horizon", button.dataset.horizon, 0));
+    });
   }
   if (!funds.length) {
     $("fundList").innerHTML = `<div class="list-note">${escapeHtml(`No funds are available in ${state.category} for the current search.`)}</div>`;
@@ -1039,12 +1061,11 @@ const renderCompare = () => {
           <h3>${horizonLabel()} return comparison</h3>
         </div>
       </div>
-      <div class="quick-filter-row compare-return-filter">
-        <span>Return view</span>
-        <button class="${state.horizon === "oneYear" ? "active" : ""}" data-horizon="oneYear">1Y</button>
-        <button class="${state.horizon === "threeYear" ? "active" : ""}" data-horizon="threeYear">3Y</button>
-        <button class="${state.horizon === "fiveYear" ? "active" : ""}" data-horizon="fiveYear">5Y</button>
-      </div>
+        <div class="quick-filter-row compare-return-filter selector-container">
+          <button class="${state.horizon === "oneYear" ? "active" : ""}" data-horizon="oneYear">1Y</button>
+          <button class="${state.horizon === "threeYear" ? "active" : ""}" data-horizon="threeYear">3Y</button>
+          <button class="${state.horizon === "fiveYear" ? "active" : ""}" data-horizon="fiveYear">5Y</button>
+        </div>
       <div id="comparePageChart" class="bar-chart"></div>
     </article>
   `;
@@ -1059,19 +1080,96 @@ const renderCompare = () => {
 const renderProfile = () => {
   const stored = localStorage.getItem("fundpulse-upload-name");
   $("uploadStatus").textContent = stored ? stored.slice(0, 22) : "Choose .xlsx";
-  const installHelp = $("installHelp");
-  const installCopy = $("installHelpCopy");
-  if (!installHelp || !installCopy) return;
-  const canInstall = Boolean(deferredInstallPrompt) && !isStandaloneMode();
-  const needsHelp = !canInstall && !isStandaloneMode();
-  installHelp.hidden = !needsHelp;
-  const isiOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  installCopy.textContent = isiOS
-    ? "Open this page in Safari, tap Share, then choose Add to Home Screen."
-    : "Open this page in Chrome, tap the browser menu, then choose Add to Home Screen.";
 };
 
 const isStandaloneMode = () => window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
+const hasSeenOnboarding = () => localStorage.getItem(ONBOARDING_KEY) === "true" || localStorage.getItem("hasSeenOnboarding") === "true";
+
+const showMainApp = () => {
+  $("skeleton")?.classList.add("hide");
+  $("app")?.classList.remove("is-loading");
+};
+
+const updateOnboardingPosition = (index) => {
+  const container = onboardContainerEl();
+  if (!container) return;
+  const safeIndex = Math.max(0, Math.min(index, LAST_ONBOARDING_INDEX));
+  currentOnboardingIndex = safeIndex;
+  container.style.transform = `translateX(-${safeIndex * 100}%)`;
+  const finishButton = $("letsGoBtn") || $("onboardingFinish");
+  if (finishButton) {
+    finishButton.textContent = currentOnboardingIndex === LAST_ONBOARDING_INDEX ? "Let’s Go" : "Next";
+  }
+};
+
+const hideOnboarding = () => {
+  const overlay = onboardingEl();
+  if (!overlay) {
+    showMainApp();
+    return;
+  }
+  overlay.hidden = true;
+  overlay.style.display = "none";
+  overlay.setAttribute("aria-hidden", "true");
+  showMainApp();
+};
+
+const finishOnboarding = () => {
+  localStorage.setItem(ONBOARDING_KEY, "true");
+  localStorage.setItem("hasSeenOnboarding", "true");
+  window.location.hash = "#dashboard";
+  if (state.tab !== "dashboard") {
+    state.tab = "dashboard";
+    syncTabUi();
+    renderAll();
+  }
+  hideOnboarding();
+};
+
+const handleOnboardingNext = () => {
+  currentOnboardingIndex = Math.min(currentOnboardingIndex, LAST_ONBOARDING_INDEX);
+  if (currentOnboardingIndex < LAST_ONBOARDING_INDEX) {
+    updateOnboardingPosition(currentOnboardingIndex + 1);
+  } else {
+    finishOnboarding();
+  }
+};
+
+const showOnboarding = () => {
+  const overlay = onboardingEl();
+  if (!overlay) {
+    showMainApp();
+    return;
+  }
+  overlay.hidden = false;
+  overlay.style.display = "";
+  overlay.setAttribute("aria-hidden", "false");
+  currentOnboardingIndex = 0;
+  updateOnboardingPosition(0);
+};
+
+const startExperience = () => {
+  if (hasSeenOnboarding()) {
+    hideOnboarding();
+    return;
+  }
+  showOnboarding();
+};
+
+const playSplashAndBoot = () => {
+  const splash = splashScreenEl();
+  if (!splash) {
+    startExperience();
+    return;
+  }
+  window.setTimeout(() => {
+    splash.classList.add("hide");
+    window.setTimeout(() => {
+      splash.hidden = true;
+      startExperience();
+    }, 300);
+  }, 300);
+};
 
 const setUpdateBanner = (visible) => {
   const banner = $("updateBanner");
@@ -1081,13 +1179,13 @@ const setUpdateBanner = (visible) => {
 };
 
 const updateInstallButton = () => {
-  const button = $("installButton");
+  const button = installButtonEl();
   if (!button) return;
   const installed = isStandaloneMode();
   const canInstall = Boolean(deferredInstallPrompt) && !installed;
   button.hidden = !canInstall;
+  button.style.display = canInstall ? "inline-flex" : "none";
   button.classList.toggle("visible", canInstall);
-  renderProfile();
 };
 
 const openDetail = (fundId) => {
@@ -1339,20 +1437,41 @@ const bindEvents = () => {
     openGlobalModal(methodologyMarkup(), { kind: "docs", size: "wide" });
   });
 
+  $("onboardingInstallButton")?.addEventListener("click", async () => {
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      try {
+        await deferredInstallPrompt.userChoice;
+      } finally {
+        deferredInstallPrompt = null;
+        updateInstallButton();
+      }
+    }
+    handleOnboardingNext();
+  });
+
+  $("onboardingSkipInstall")?.addEventListener("click", handleOnboardingNext);
+  document.querySelectorAll(".onboarding-next").forEach((button) => {
+    button.addEventListener("click", handleOnboardingNext);
+  });
+  document.querySelectorAll(".onboarding-skip-all").forEach((button) => {
+    button.addEventListener("click", finishOnboarding);
+  });
+
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") closeAllOverlays();
   });
 
   $("excelUpload").addEventListener("change", (event) => handleUpload(event.target.files[0]));
-  $("installButton").addEventListener("click", async () => {
+  installButtonEl()?.addEventListener("click", async () => {
     if (!deferredInstallPrompt) return;
     deferredInstallPrompt.prompt();
-    try {
-      await deferredInstallPrompt.userChoice;
-    } finally {
-      deferredInstallPrompt = null;
-      updateInstallButton();
+    const { outcome } = await deferredInstallPrompt.userChoice;
+    if (outcome === "accepted") {
+      console.log("User installed");
     }
+    deferredInstallPrompt = null;
+    updateInstallButton();
   });
   $("updateBanner")?.addEventListener("click", () => {
     if (waitingServiceWorker) {
@@ -1422,10 +1541,7 @@ const init = () => {
   bindEvents();
   updateInstallButton();
   renderAll();
-  setTimeout(() => {
-    $("skeleton").classList.add("hide");
-    $("app").classList.remove("is-loading");
-  }, 520);
+  playSplashAndBoot();
 };
 
 init();

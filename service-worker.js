@@ -1,4 +1,4 @@
-const CACHE_NAME = "funalytics-v3";
+const CACHE_NAME = "funalytics-v2";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -7,11 +7,10 @@ const APP_SHELL = [
   "/src/workbook-import.js",
   "/assets/app-data.js",
   "/assets/vendor/jszip.min.js",
-  "/manifest.json",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png",
-  "/assets/branding/logo-dark.png",
-  "/assets/branding/logo-light.png"
+  "/manifest.json?v=2",
+  "/manifest.webmanifest",
+  "/icons/light-logo.png",
+  "/icons/dark-logo.png"
 ];
 
 self.addEventListener("install", (event) => {
