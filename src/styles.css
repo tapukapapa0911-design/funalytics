@@ -1,6 +1,8 @@
 /* Funalytics build refresh: 2026-04-19 evening patch */
 :root {
   color-scheme: dark;
+  --fade-color: rgba(11,15,26,0.9);
+  --fade-solid: #0b0f1a;
   --motion-snap: cubic-bezier(0.2, 0.8, 0.2, 1);
   --motion-fast: 180ms;
   --motion-base: 190ms;
@@ -29,6 +31,8 @@
 
 body.light {
   color-scheme: light;
+  --fade-color: rgba(255,255,255,0.7);
+  --fade-solid: #f7f9fc;
   --bg: #f7f9fc;
   --bg-2: #e8eef7;
   --surface: rgba(255, 255, 255, 0.78);
@@ -40,6 +44,11 @@ body.light {
   --accent-2: #6d28d9;
   --blue: #2563eb;
   --shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
+  background-color: #f7f9fc;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(14, 165, 151, 0.06), transparent 28%),
+    radial-gradient(circle at 82% 22%, rgba(109, 40, 217, 0.05), transparent 30%),
+    linear-gradient(135deg, #f7f9fc, #e8eef7);
 }
 
 * {
@@ -429,7 +438,7 @@ body.light .parameter-row {
   will-change: transform, opacity;
   transform: translateZ(0);
   backface-visibility: hidden;
-  background: linear-gradient(to bottom, transparent, rgba(11,15,26,0.9) 85%, #0b0f1a 100%);
+  background: linear-gradient(to bottom, transparent 70%, var(--fade-color) 92%,var(--fade-solid) 100%);
 }
 
 .app.is-loading {
@@ -473,6 +482,7 @@ body.light .parameter-row {
 .muted {
   color: var(--muted);
   line-height: 1.45;
+  margin-bottom: 6px;
 }
 
 .icon-button {
@@ -661,6 +671,9 @@ input {
   will-change: transform, width, height, opacity;
   pointer-events: none;
   z-index: 0;
+  transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+  width 260ms cubic-bezier(0.22, 1, 0.36, 1),
+  opacity 180ms ease;
 }
 
 .segmented button,
@@ -690,7 +703,7 @@ input {
 .chip.active,
 .quick-filter-row button.active {
   background: transparent;
-  color: var(--bg);
+  color: #0f172a;
 }
 
 .quick-filter-row {
@@ -821,7 +834,7 @@ input {
   display: none;
   flex: 1 0 auto;
   flex-direction: column;
-  gap: 14px;
+  gap: 6px;
   min-height: auto;
   height: auto;
   padding-bottom: calc(90px + env(safe-area-inset-bottom));
@@ -837,18 +850,18 @@ input {
 
 .screen.active {
   display: flex;
-  animation: screenIn 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: screenIn 260ms cubic-bezier(0.22, 1, 0.36, 1);
   transform: translate3d(var(--tab-shift, 0px), 0, 0);
 }
 
 @keyframes screenIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(14px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -862,13 +875,13 @@ input {
   border: 1px solid var(--border);
   background: var(--surface);
   backdrop-filter: blur(6px);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.11);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.07);
   transition: transform var(--motion-slow) var(--motion-snap), box-shadow var(--motion-slow) var(--motion-snap), background var(--motion-slow) var(--motion-snap), opacity var(--motion-slow) var(--motion-snap);
   backface-visibility: hidden;
 }
 
 .screen.active > * {
-  animation: sectionIn var(--motion-slow) var(--motion-snap) both;
+  animation: sectionIn 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .screen.active > *:nth-child(2) { animation-delay: 40ms; }
@@ -877,11 +890,11 @@ input {
 .screen.active > *:nth-child(5) { animation-delay: 160ms; }
 
 @keyframes sectionIn {
-  from {
+  0% {
     opacity: 0;
-    transform: translateY(10px) scale(0.97);
+    transform: translateY(16px) scale(0.96);
   }
-  to {
+  100% {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
@@ -889,10 +902,10 @@ input {
 
 @keyframes heroFloat {
   0%, 100% {
-    transform: translateZ(0);
+    transform: translateY(0);
   }
   50% {
-    transform: translate3d(0, -2px, 0);
+    transform: translateY(-3px);
   }
 }
 
@@ -902,6 +915,7 @@ input {
   justify-content: space-between;
   gap: 14px;
   padding: 18px;
+  box-shadow: 0 12px 28px rgba(0,0,0,0.08);
   border-radius: var(--radius);
   background:
     linear-gradient(135deg, rgba(94, 234, 212, 0.22), rgba(139, 92, 246, 0.16)),
@@ -985,7 +999,7 @@ input {
 .kpi-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 10px;
   margin: 14px 0;
 }
 
@@ -994,7 +1008,7 @@ input {
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: 22px;
-  background: var(--surface-strong);
+  background: var(--surface);
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.1);
   transition: transform var(--motion-base) var(--motion-snap), box-shadow var(--motion-base) var(--motion-snap), opacity var(--motion-base) var(--motion-snap);
   will-change: transform;
@@ -1004,9 +1018,10 @@ input {
 
 .metric-card:active,
 .fund-card:active,
-.chip:active {
-  transform: scale(0.982) translateZ(0);
-  opacity: 0.97;
+.chip:active 
+.icon-button:active {
+  transform: scale(0.96);
+  transition: transform 120ms ease;
 }
 
 .metric-card:hover,
@@ -1040,13 +1055,39 @@ input {
 }
 
 .metric-icon {
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   display: grid;
   place-items: center;
-  border-radius: 13px;
-  color: #041015;
+  border-radius: 14px;
   font-weight: 900;
+  font-size: 16px;
+  color: #041015;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.08);
+  transition: all 0.25s ease;
+}
+
+body:not(.light) .metric-icon {
+  color: #041015;
+
+  box-shadow:
+    0 6px 18px rgba(0,0,0,0.25),
+    0 0 8px rgba(94, 234, 212, 0.18);
+}
+
+/* LIGHT MODE */
+body.light .metric-icon {
+  color: #ffffff;
+
+  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+}
+
+.metric-icon:hover {
+  transform: translateY(-2px) scale(1.04);
+}
+
+.metric-icon:active {
+  transform: scale(0.92);
 }
 
 .metric-icon::before {
@@ -1075,25 +1116,31 @@ input {
 }
 
 .metric-icon.accent {
-  background: var(--accent);
-}
-
-.metric-icon.teal {
-  background: #2dd4bf;
-}
-
-.metric-icon.violet {
-  background: #a78bfa;
+  background: linear-gradient(135deg, #5eead4, #2dd4bf);
 }
 
 .metric-icon.blue {
-  background: var(--blue);
+  background: linear-gradient(135deg, #60a5fa, #3b82f6);
+}
+
+.metric-icon.violet {
+  background: linear-gradient(135deg, #a78bfa, #8b5cf6);
+}
+
+.metric-icon.teal {
+  background: linear-gradient(135deg, #2dd4bf, #14b8a6);
 }
 
 .chart-panel {
   padding: 16px;
   border-radius: var(--radius);
   overflow: hidden;
+  margin-top: 6px;
+  margin-bottom: 10px;
+}
+
+.chart-panel p {
+  margin-bottom: 6px;
 }
 
 .section-head h3 {
@@ -1104,7 +1151,6 @@ input {
 .line-chart,
 .bar-chart {
   min-height: 220px;
-  margin-top: 14px;
 }
 
 .chart-tooltip {
@@ -1127,6 +1173,7 @@ input {
 
 .chart-point {
   opacity: 1;
+  transform: none;
 }
 
 .quick-actions {
@@ -1203,9 +1250,9 @@ svg {
 }
 
 .chart-line {
-  stroke-dasharray: 1000;
-  stroke-dashoffset: 1000;
-  animation: drawLine 720ms var(--motion-snap) forwards;
+  stroke-dasharray: 1200;
+  stroke-dashoffset: 1200;
+  animation: drawLine 900ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 @keyframes drawLine {
@@ -2236,11 +2283,10 @@ a,
   padding: 8px 12px max(8px, var(--nav-safe-bottom));
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 26px;
-  background: linear-gradient(to top, rgba(15,23,42,0.95), rgba(15,23,42,0.85));
+  background: var(--surface);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  box-shadow:
-    0 -6px 20px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2412,8 +2458,10 @@ body.light .bottom-nav {
   background: transparent;
   color: var(--muted);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
+  opacity: 0.8;
   transition: background var(--motion-base) var(--motion-snap), color var(--motion-base) var(--motion-snap), transform var(--motion-base) var(--motion-snap), box-shadow var(--motion-base) var(--motion-snap), opacity var(--motion-fast) var(--motion-snap);
+  transition: all 0.2s ease;
   will-change: transform, opacity;
   transform: translateZ(0);
   backface-visibility: hidden;
@@ -2428,6 +2476,10 @@ body.light .bottom-nav {
   background: linear-gradient(180deg, rgba(94, 234, 212, 0.16), rgba(139, 92, 246, 0.12));
   color: var(--text);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 4px 12px rgba(94, 234, 212, 0.12);
+  transform: translateY(-2px);
+  transform: scale(0.92);
+  font-weight: 700;
+  opacity: 1;
 }
 
 .bottom-nav button:active {
@@ -2593,11 +2645,49 @@ body.light .bottom-nav {
 .skeleton {
   min-height: 84px;
   border-radius: 22px;
-  background: linear-gradient(90deg, rgba(148, 163, 184, 0.13), rgba(148, 163, 184, 0.24), rgba(148, 163, 184, 0.13));
-  background-size: 220% 100%;
-  animation: shimmer 1.15s linear infinite;
+   background: linear-gradient(
+    90deg,
+    rgba(148,163,184,0.08),
+    rgba(148,163,184,0.18),
+    rgba(148,163,184,0.08));
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
 }
 
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-row .skeleton:nth-child(1) { animation-delay: 0.1s; }
+.skeleton-row .skeleton:nth-child(2) { animation-delay: 0.2s; }
+.skeleton-row .skeleton:nth-child(3) { animation-delay: 0.3s; }
+
+.skeleton-screen.hide {
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(0.98);
+  transition: all 0.3s ease;
+}
+
+.app.is-loaded {
+  animation: contentFade 400ms ease;
+}
+
+@keyframes contentFade {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 .skeleton.hero {
   min-height: 132px;
 }
@@ -2679,6 +2769,8 @@ body.light .bottom-nav {
   .time-filter {
     width: 100%;
     justify-content: space-between;
+    margin-top: 6px;
+    margin-bottom: 8px;
   }
 }
 
