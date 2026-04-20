@@ -2963,19 +2963,3 @@ body {
 #screen-profile .contact-link strong {
   word-break: break-word;
 }
-/* 🔥 DISABLE PULL-TO-REFRESH / TOP WHITE LINE */
-
-html, body {
-  overscroll-behavior-y: none;
-}
-
-/* App container ko lock karo */
-.app {
-  overscroll-behavior: none;
-}
-
-/* Extra safety (Chrome / Android) */
-body {
-  overflow-y: auto;
-  position: relative;
-}
