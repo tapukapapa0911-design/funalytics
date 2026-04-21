@@ -23,17 +23,14 @@ const state = {
 
 let deferredInstallPrompt = null;
 let canShowInstall = false;
-let waitingServiceWorker = null;
-let pendingUpdateReload = false;
 let isAppReady = false;
-let serverUpdateVersion = null;
-let updateCheckTimer = null;
 const INSTALL_FLOW_KEY = "install_flow_done";
 const ONBOARDING_KEY = "funalytics_onboarding_done";
 const LEGACY_ONBOARDING_KEY = "onboarding_done";
 const BROWSER_INSTALL_CTA_KEY = "browser_install_cta_enabled";
 const FAVORITES_KEY = "fundpulse-favorite-funds";
-const UPDATE_VERSION_KEY = "fundpulse-app-version";
+const UPDATE_BANNER_DISMISSED_KEY = "funalytics-update-banner-dismissed";
+const UPDATE_VERSION_KEY = "funalytics-app-version";
 const UPDATE_CHECK_URL = "/update.json";
 const UPDATE_CHECK_INTERVAL = 10 * 60 * 1000;
 const ONBOARDING_STEPS = 5;
@@ -41,6 +38,8 @@ const LAST_ONBOARDING_INDEX = 4;
 let currentOnboardingIndex = 0;
 let previousHorizonValue = state.horizon;
 const MODAL_ANIMATION_MS = 220;
+let serverUpdateVersion = null;
+let updateCheckTimer = null;
 
 const $ = (id) => document.getElementById(id);
 const modalRoot = () => $("global-modal");
@@ -1629,6 +1628,8 @@ const loadDashboard = () => {
 const enterApp = () => {
   loadDashboard();
   updateInstallButton();
+  setUpdateBannerMessage("New update available • Tap to refresh");
+  setUpdateBanner(false);
 };
 
 const updateOnboardingPanelHeight = (index = currentOnboardingIndex) => {
@@ -1777,38 +1778,39 @@ const compareVersionStrings = (left, right) => {
 };
 
 const syncUpdateBannerState = () => {
-  if (waitingServiceWorker) {
-    setUpdateBannerMessage("New version ready — Tap to refresh");
-    setUpdateBanner(true);
-    return;
-  }
-  if (serverUpdateVersion) {
+  const dismissedVersion = sessionStorage.getItem(UPDATE_BANNER_DISMISSED_KEY);
+  const shouldShow = Boolean(serverUpdateVersion) && dismissedVersion !== serverUpdateVersion;
+  if (shouldShow) {
     setUpdateBannerMessage("New update available • Tap to refresh");
-    setUpdateBanner(true);
-    return;
   }
-  setUpdateBanner(false);
+  setUpdateBanner(shouldShow);
 };
 
 const checkForServerUpdate = async () => {
   try {
     const response = await fetch(UPDATE_CHECK_URL, { cache: "no-store" });
-    if (!response.ok) return;
+    if (!response.ok) {
+      syncUpdateBannerState();
+      return;
+    }
     const data = await response.json();
-    if (!data || !data.version) return;
+    if (!data || !data.version) {
+      syncUpdateBannerState();
+      return;
+    }
     const storedVersion = localStorage.getItem(UPDATE_VERSION_KEY);
     if (!storedVersion) {
       localStorage.setItem(UPDATE_VERSION_KEY, data.version);
+      serverUpdateVersion = null;
+      syncUpdateBannerState();
       return;
     }
-    if (data.updateAvailable && compareVersionStrings(data.version, storedVersion) > 0) {
-      serverUpdateVersion = data.version;
-    } else if (serverUpdateVersion && data.version === storedVersion) {
-      serverUpdateVersion = null;
-    }
+    const hasNewVersion = Boolean(data.updateAvailable) && compareVersionStrings(data.version, storedVersion) > 0;
+    serverUpdateVersion = hasNewVersion ? data.version : null;
     syncUpdateBannerState();
   } catch (error) {
     console.error("Update check failed", error);
+    syncUpdateBannerState();
   }
 };
 
@@ -2184,23 +2186,13 @@ const bindEvents = () => {
 
   $("excelUpload").addEventListener("change", (event) => handleUpload(event.target.files[0]));
   $("updateBanner")?.addEventListener("click", () => {
-    if (waitingServiceWorker) {
-      pendingUpdateReload = true;
-      setUpdateBanner(false);
-      waitingServiceWorker.postMessage({ type: "SKIP_WAITING" });
-      window.setTimeout(() => {
-        if (pendingUpdateReload) {
-          window.location.reload();
-        }
-      }, 800);
-      return;
-    }
     if (serverUpdateVersion) {
+      sessionStorage.setItem(UPDATE_BANNER_DISMISSED_KEY, serverUpdateVersion);
       localStorage.setItem(UPDATE_VERSION_KEY, serverUpdateVersion);
       serverUpdateVersion = null;
       setUpdateBanner(false);
-      window.location.reload();
     }
+    window.location.reload();
   });
   $("saveReport").addEventListener("click", () => {
     const reportWindow = window.open("", "_blank", "width=1100,height=800");
@@ -2233,33 +2225,7 @@ const bindEvents = () => {
 const registerServiceWorkerWhenIdle = () => {
   if (!("serviceWorker" in navigator) || location.protocol === "file:") return;
   const startRegistration = () => {
-    navigator.serviceWorker.register("/service-worker.js").then((registration) => {
-      if (registration.waiting) {
-        waitingServiceWorker = registration.waiting;
-        waitingServiceWorker.postMessage({ type: "SKIP_WAITING" });
-      }
-      registration.addEventListener("updatefound", () => {
-        const installing = registration.installing;
-        if (!installing) return;
-        installing.addEventListener("statechange", () => {
-        if (installing.state === "installed" && navigator.serviceWorker.controller) {
-          waitingServiceWorker = registration.waiting || installing;
-          if (registration.waiting) {
-            registration.waiting.postMessage({ type: "SKIP_WAITING" });
-          }
-          syncUpdateBannerState();
-        }
-      });
-    });
-      navigator.serviceWorker.addEventListener("controllerchange", () => {
-        const reloadKey = "funalytics-sw-reload";
-        if (!sessionStorage.getItem(reloadKey)) {
-          sessionStorage.setItem(reloadKey, "1");
-          pendingUpdateReload = false;
-          window.location.reload();
-        }
-      });
-    }).catch(() => {});
+    navigator.serviceWorker.register("/service-worker.js").catch(() => {});
   };
   if ("requestIdleCallback" in window) {
     window.requestIdleCallback(startRegistration, { timeout: 1200 });
