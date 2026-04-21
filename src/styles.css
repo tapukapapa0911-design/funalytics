@@ -1293,6 +1293,7 @@ input {
 
 .fund-view-toggle {
   margin: 2px 0 10px;
+ width: fit-content; 
 }
 
 .fund-card-actions {
