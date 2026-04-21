@@ -123,7 +123,7 @@
                 <small>Score</small>
               </div>
             </div>
-            <p class="hero-score-helper muted">Funalytics Score is based on returns, consistency &amp; relative performance.</p>
+            <p class="hero-score-helper eyebrow">Funalytics Score is based on returns, consistency &amp; relative performance.</p>
 
             <div class="quick-filter-row dashboard-return-tabs" aria-label="Return horizon">
               <button class="active" data-horizon="oneYear">1Y</button>
@@ -132,11 +132,12 @@
             </div>
 
             <div class="kpi-grid">
-              <article class="metric-card wide">
+              <article class="metric-card wide is-tappable" id="topPerformerCard" role="button" tabindex="0" aria-label="Open top performer insight">
                 <span class="metric-icon violet icon-top" aria-hidden="true"></span>
                 <p>Top Performer</p>
                 <strong id="topPerformer">-</strong>
               </article>
+              <div id="topPerformerInsightMount" class="top-performer-insight-shell" aria-hidden="true"></div>
               <article class="metric-card">
                 <span class="metric-icon accent icon-return" aria-hidden="true"></span>
                 <p>Average Return</p>
@@ -192,6 +193,10 @@
               <button class="chip active" data-sort="rank">Rank</button>
               <button class="chip" data-sort="return">Return</button>
               <button class="chip" data-sort="consistency">Consistency</button>
+            </div>
+            <div class="segmented fund-view-toggle" aria-label="Fund view">
+              <button class="active" data-fund-view="all">All Funds</button>
+              <button data-fund-view="favorites">Saved Funds</button>
             </div>
             <div id="rankingFilterMount"></div>
             <div id="fundList" class="fund-list"></div>

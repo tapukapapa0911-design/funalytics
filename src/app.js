@@ -12,11 +12,13 @@ const state = {
   horizon: "oneYear",
   dataset: "new",
   period: "1Y",
+  fundView: localStorage.getItem("fundpulse-fund-view") || "all",
   query: "",
   pickerTarget: "category",
   selectedFundId: null,
   compareFundAId: null,
-  compareFundBId: null
+  compareFundBId: null,
+  topInsightOpen: false
 };
 
 let deferredInstallPrompt = null;
@@ -24,10 +26,16 @@ let canShowInstall = false;
 let waitingServiceWorker = null;
 let pendingUpdateReload = false;
 let isAppReady = false;
+let serverUpdateVersion = null;
+let updateCheckTimer = null;
 const INSTALL_FLOW_KEY = "install_flow_done";
 const ONBOARDING_KEY = "funalytics_onboarding_done";
 const LEGACY_ONBOARDING_KEY = "onboarding_done";
 const BROWSER_INSTALL_CTA_KEY = "browser_install_cta_enabled";
+const FAVORITES_KEY = "fundpulse-favorite-funds";
+const UPDATE_VERSION_KEY = "fundpulse-app-version";
+const UPDATE_CHECK_URL = "/update.json";
+const UPDATE_CHECK_INTERVAL = 10 * 60 * 1000;
 const ONBOARDING_STEPS = 5;
 const LAST_ONBOARDING_INDEX = 4;
 let currentOnboardingIndex = 0;
@@ -152,6 +160,20 @@ const riskLabel = (fund) => {
   const value = riskOf(fund);
   return value === null ? "—" : `${value.toFixed(1)} vol`;
 };
+const riskBandLabel = (fund) => {
+  const value = riskOf(fund);
+  if (value === null) return "—";
+  if (value <= 4) return "Low";
+  if (value <= 8) return "Moderate";
+  return "High";
+};
+const consistencyBandLabel = (fund) => {
+  const value = consistencyOf(fund);
+  if (value === null) return "—";
+  if (value >= 8) return "High";
+  if (value >= 5) return "Medium";
+  return "Low";
+};
 const horizonLabel = () => ({ oneYear: "1Y", threeYear: "3Y", fiveYear: "5Y" })[state.horizon];
 const periodCount = () => ({ "1M": 2, "3M": 2, "6M": 3, "1Y": 5 })[state.period] || 5;
 const datasetLabel = () => state.dataset === "new" ? "Latest dataset" : "Historical dataset";
@@ -167,9 +189,43 @@ const allCategoryFunds = () => appData.funds
   .filter((fund) => fund.category === state.category)
   .sort((a, b) => (a.rank || 999) - (b.rank || 999));
 
+const allFunds = () => [...(appData?.funds || [])];
+
+const loadFavoriteFundIds = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]");
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return new Set();
+  }
+};
+
+const saveFavoriteFundIds = (ids) => {
+  localStorage.setItem(FAVORITES_KEY, JSON.stringify([...ids]));
+};
+
+const favoriteFundIds = () => loadFavoriteFundIds();
+
+const isFavoriteFund = (fundId) => favoriteFundIds().has(fundId);
+
+const toggleFavoriteFund = (fundId) => {
+  const ids = favoriteFundIds();
+  if (ids.has(fundId)) ids.delete(fundId);
+  else ids.add(fundId);
+  saveFavoriteFundIds(ids);
+};
+
 const horizonValueOf = (fund) => {
   const value = fund?.[state.horizon];
   return typeof value === "number" ? value : null;
+};
+const fundMetricReturnLabel = (fund) => {
+  const horizonValue = horizonValueOf(fund);
+  if (horizonValue !== null) return formatPct(horizonValue);
+  if (typeof fund?.threeYear === "number") return formatPct(fund.threeYear);
+  if (typeof fund?.oneYear === "number") return formatPct(fund.oneYear);
+  if (typeof fund?.fiveYear === "number") return formatPct(fund.fiveYear);
+  return "—";
 };
 
 const horizonRankMap = (funds = allCategoryFunds()) => {
@@ -309,9 +365,18 @@ const visibleFunds = () => {
   const categoryFunds = allCategoryFunds();
   const displayRanks = currentRankingMap(categoryFunds);
   const query = state.query.trim().toLowerCase();
-  let funds = query
-    ? categoryFunds.filter((fund) => fund.fundName.toLowerCase().includes(query))
-    : categoryFunds;
+  const selectedCategory = state.category;
+  const favorites = favoriteFundIds();
+  const sourceFunds = query
+    ? allFunds()
+    : state.fundView === "favorites"
+      ? allFunds().filter((fund) => favorites.has(fund.id))
+      : categoryFunds;
+  let funds = sourceFunds.filter((fund) => {
+    if (state.fundView === "favorites" && !favorites.has(fund.id)) return false;
+    if (!query) return true;
+    return fund.fundName.toLowerCase().includes(query);
+  });
 
   const sorters = {
     rank: (a, b) => {
@@ -337,10 +402,30 @@ const visibleFunds = () => {
       return (displayRanks.get(a.id) || 999) - (displayRanks.get(b.id) || 999);
     }
   };
+
+  const queryRank = (fund) => {
+    if (!query) return 0;
+    const name = fund.fundName.toLowerCase();
+    if (name === query) return 0;
+    if (name.startsWith(query)) return 1;
+    const index = name.indexOf(query);
+    return index === -1 ? 999 : 2 + index;
+  };
+
+  const categoryPriority = (fund) => (fund.category === selectedCategory ? 0 : 1);
+
   funds = [...funds]
-    .sort(sorters[state.sort])
+    .sort((a, b) => {
+      if (query) {
+        const queryDiff = queryRank(a) - queryRank(b);
+        if (queryDiff) return queryDiff;
+      }
+      const categoryDiff = categoryPriority(a) - categoryPriority(b);
+      if (categoryDiff) return categoryDiff;
+      return sorters[state.sort](a, b);
+    })
     .map((fund) => ({ ...fund, displayRank: displayRanks.get(fund.id) || fund.rank || 999 }));
-  return query ? funds.slice(0, 40) : funds.slice(0, 10);
+  return query || state.fundView === "favorites" ? funds.slice(0, 60) : funds.slice(0, 10);
 };
 
 const renderFallback = (targetId, title, body) => {
@@ -533,6 +618,339 @@ const storySentence = (fund, funds) => {
       : `It is trailing the category average by ${Math.abs(signals.latestComparison).toFixed(1)} pts.`;
   return `${returnStrength} ${shortTermRead} ${compareRead}`;
 };
+
+const clampValue = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value));
+
+const normalizeInsightMetric = (value, peers, { invert = false } = {}) => {
+  const numbers = peers.filter((item) => Number.isFinite(item));
+  if (!numbers.length || !Number.isFinite(value)) return 0.5;
+  const min = Math.min(...numbers);
+  const max = Math.max(...numbers);
+  if (Math.abs(max - min) < 0.0001) return 0.7;
+  const normalized = (value - min) / (max - min);
+  const adjusted = invert ? 1 - normalized : normalized;
+  return clampValue(0.18 + adjusted * 0.72, 0.16, 0.98);
+};
+
+const fundReturnStrength = (fund) => {
+  const slices = [
+    typeof fund?.oneYear === "number" ? { value: fund.oneYear * 100, weight: 0.28 } : null,
+    typeof fund?.threeYear === "number" ? { value: fund.threeYear * 100, weight: 0.34 } : null,
+    typeof fund?.fiveYear === "number" ? { value: fund.fiveYear * 100, weight: 0.38 } : null
+  ].filter(Boolean);
+  if (!slices.length) return null;
+  const totalWeight = slices.reduce((sum, slice) => sum + slice.weight, 0) || 1;
+  return slices.reduce((sum, slice) => sum + slice.value * slice.weight, 0) / totalWeight;
+};
+
+const topPerformerTrendSignal = (fund) => {
+  const shortTerm = typeof fund?.oneYear === "number" ? fund.oneYear * 100 : null;
+  const longTerms = [fund?.threeYear, fund?.fiveYear].filter((value) => typeof value === "number").map((value) => value * 100);
+  const longTerm = longTerms.length ? longTerms.reduce((sum, value) => sum + value, 0) / longTerms.length : null;
+  const delta = shortTerm !== null && longTerm !== null
+    ? shortTerm - longTerm
+    : Number.isFinite(Number(fund?.trendDelta))
+      ? Number(fund.trendDelta)
+      : 0;
+  const strengthening = fund?.trend === "Improving" || (fund?.trend !== "Declining" && delta >= 0);
+  return strengthening
+    ? {
+        tone: "strengthening",
+        emoji: "🔥",
+        title: "Strengthening",
+        summary: "Recent return momentum is holding up against the longer-term track."
+      }
+    : {
+        tone: "weakening",
+        emoji: "📉",
+        title: "Weakening",
+        summary: "Recent return momentum has cooled versus the longer-term base."
+      };
+};
+
+const buildFundDna = (fund, funds) => {
+  const returnStrength = fundReturnStrength(fund);
+  const returnPeers = funds.map(fundReturnStrength);
+  const consistencyValue = consistencyOf(fund);
+  const consistencyPeers = funds.map(consistencyOf);
+  const riskValue = volatilityOf(fund);
+  const riskPeers = funds.map(volatilityOf);
+  const shortTerm = typeof fund?.oneYear === "number" ? fund.oneYear * 100 : null;
+  const mediumTerm = typeof fund?.threeYear === "number" ? fund.threeYear * 100 : null;
+  const longTerm = typeof fund?.fiveYear === "number" ? fund.fiveYear * 100 : null;
+  const momentumValue = shortTerm !== null && mediumTerm !== null ? shortTerm - mediumTerm : Number(fund?.trendDelta) || 0;
+  const momentumPeers = funds.map((item) => {
+    const short = typeof item?.oneYear === "number" ? item.oneYear * 100 : null;
+    const medium = typeof item?.threeYear === "number" ? item.threeYear * 100 : null;
+    return short !== null && medium !== null ? short - medium : Number(item?.trendDelta) || 0;
+  });
+  const stabilityValue = consistencyValue !== null && riskValue !== null ? consistencyValue - riskValue : consistencyValue;
+  const stabilityPeers = funds.map((item) => {
+    const itemConsistency = consistencyOf(item);
+    const itemRisk = volatilityOf(item);
+    return itemConsistency !== null && itemRisk !== null ? itemConsistency - itemRisk : itemConsistency;
+  });
+  return [
+    {
+      key: "return",
+      label: "Return",
+      note: returnStrength === null ? "Limited history" : `${returnStrength >= 12 ? "Strong" : returnStrength >= 8 ? "Balanced" : "Measured"} return profile`,
+      scale: normalizeInsightMetric(returnStrength, returnPeers),
+      accent: "teal",
+      displayValue: returnStrength === null ? "—" : `${returnStrength.toFixed(1)}%`
+    },
+    {
+      key: "risk",
+      label: "Risk",
+      note: riskValue === null ? "No volatility read" : `${normalizeInsightMetric(riskValue, riskPeers, { invert: true }) >= 0.6 ? "Controlled" : "Elevated"} category risk`,
+      scale: normalizeInsightMetric(riskValue, riskPeers, { invert: true }),
+      accent: "violet",
+      displayValue: riskValue === null ? "—" : `${riskValue.toFixed(1)}`
+    },
+    {
+      key: "consistency",
+      label: "Consistency",
+      note: consistencyValue === null ? "Limited history" : `${normalizeInsightMetric(consistencyValue, consistencyPeers) >= 0.62 ? "Above average" : "Category aligned"} consistency`,
+      scale: normalizeInsightMetric(consistencyValue, consistencyPeers),
+      accent: "blue",
+      displayValue: consistencyValue === null ? "—" : consistencyValue.toFixed(1)
+    },
+    {
+      key: "stability",
+      label: "Stability",
+      note: stabilityValue === null ? "Limited history" : `${normalizeInsightMetric(stabilityValue, stabilityPeers) >= 0.6 ? "Steady" : "Mixed"} behaviour across cycles`,
+      scale: normalizeInsightMetric(stabilityValue, stabilityPeers),
+      accent: "indigo",
+      displayValue: stabilityValue === null ? "—" : stabilityValue.toFixed(1)
+    },
+    {
+      key: "momentum",
+      label: "Momentum",
+      note: momentumValue >= 0 ? "Short-term trend improving" : "Short-term trend cooling",
+      scale: normalizeInsightMetric(momentumValue, momentumPeers),
+      accent: "purple",
+      displayValue: `${momentumValue >= 0 ? "+" : ""}${momentumValue.toFixed(1)}`
+    }
+  ];
+};
+
+const renderFundDnaRadar = (dimensions) => {
+const isLight = document.body.classList.contains("light");
+  const width = 290;
+  const height = 290;
+  const cx = width / 2;
+  const cy = height / 2;
+  const radius = 105;
+  const count = dimensions.length;
+  const angleFor = (index) => (-Math.PI / 2) + ((Math.PI * 2) / count) * index;
+  const pointFor = (scale, index) => {
+    const angle = angleFor(index);
+    return {
+      x: cx + Math.cos(angle) * radius * scale,
+      y: cy + Math.sin(angle) * radius * scale
+    };
+  };
+  const rings = [0.2, 0.4, 0.6, 0.8, 1].map((ring) => {
+    const points = dimensions.map((_, index) => {
+      const point = pointFor(ring, index);
+      return `${point.x.toFixed(1)},${point.y.toFixed(1)}`;
+    }).join(" ");
+    return `<polygon points="${points}" fill="none"stroke="${isLight ? 'rgba(15,23,42,0.18)' : 'rgba(255,255,255,0.08)'}"
+opacity="1" stroke-width="${ring === 1 ? 1.1 : 1}"/>`;
+  }).join("");
+  const axes = dimensions.map((item, index) => {
+    const outer = pointFor(1, index);
+    const label = pointFor(1.12, index);
+    return `
+      <line x1="${cx}" y1="${cy}" x2="${outer.x.toFixed(1)}" y2="${outer.y.toFixed(1)}" stroke="currentColor" opacity="0.12"/>
+      <text x="${label.x.toFixed(1)}" y="${label.y.toFixed(1)}" text-anchor="middle" dominant-baseline="central" fill="${isLight ? '#0f172a' : '#e2e8f0'}"
+opacity="1" font-size="12" font-weight="700">${escapeHtml(item.label)}</text>
+    `;
+  }).join("");
+  const areaPoints = dimensions.map((item, index) => {
+    const point = pointFor(item.scale, index);
+    return `${point.x.toFixed(1)},${point.y.toFixed(1)}`;
+  }).join(" ");
+  const nodes = dimensions.map((item, index) => {
+    const point = pointFor(item.scale, index);
+    return `<circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="4.5" fill="#fff" filter="url(#glow)" stroke="url(#fundRadarStroke)" stroke-width="2"/>`;
+  }).join("");
+  return `
+    <svg viewBox="0 0 ${width} ${height}" class="fund-radar" role="img" aria-label="Fund DNA radar chart">
+      <defs>
+        <linearGradient id="fundRadarFill" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#67e8f9" stop-opacity="0.28"/>
+          <stop offset="55%" stop-color="#60a5fa" stop-opacity="0.16"/>
+          <stop offset="100%" stop-color="#d946ef" stop-opacity="0.28"/>
+        </linearGradient>
+        <linearGradient id="fundRadarStroke" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#67e8f9"/>
+          <stop offset="52%" stop-color="#a78bfa"/>
+          <stop offset="100%" stop-color="#e879f9"/>
+        </linearGradient>
+        <radialGradient id="fundRadarGlow" cx="50%" cy="50%" r="60%">
+          <stop offset="0%" stop-color="#67e8f9" stop-opacity="0.32"/>
+          <stop offset="100%" stop-color="#67e8f9" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <circle cx="${cx}" cy="${cy}" r="${radius * 0.94}" fill="${isLight ? 'rgba(99,102,241,0.08)' : 'url(#fundRadarGlow)'}"/>
+      ${rings}
+      ${axes}
+      <polygon class="fund-radar__area" points="${areaPoints}" fill="${isLight ? 'rgba(99,102,241,0.25)' : 'url(#fundRadarFill)'}"
+stroke="${isLight ? '#6366f1' : 'url(#fundRadarStroke)'}" stroke-width="2.4"/>
+      ${nodes}
+    </svg>
+  `;
+};
+
+const buildWhyThisFund = (fund, funds, summary) => {
+  const insights = [];
+  const avgThreeYear = funds.map((item) => typeof item?.threeYear === "number" ? item.threeYear * 100 : null).filter(Number.isFinite);
+  const avgFiveYear = funds.map((item) => typeof item?.fiveYear === "number" ? item.fiveYear * 100 : null).filter(Number.isFinite);
+  const avgConsistency = funds.map(consistencyOf).filter(Number.isFinite);
+  const avgVolatility = funds.map(volatilityOf).filter(Number.isFinite);
+  const threeYear = typeof fund?.threeYear === "number" ? fund.threeYear * 100 : null;
+  const fiveYear = typeof fund?.fiveYear === "number" ? fund.fiveYear * 100 : null;
+  const consistencyValue = consistencyOf(fund);
+  const volatilityValue = volatilityOf(fund);
+  const trendSignal = topPerformerTrendSignal(fund);
+
+  if ((fund.rank || 999) === 1 || scoreOf(fund) >= Number(summary?.topScore || 0)) {
+    insights.push("Top-ranked in the category on the current dashboard score.");
+  }
+  if (fiveYear !== null && avgFiveYear.length && fiveYear > (avgFiveYear.reduce((sum, value) => sum + value, 0) / avgFiveYear.length)) {
+    insights.push("Strong long-term performance versus category peers.");
+  } else if (threeYear !== null && avgThreeYear.length && threeYear > (avgThreeYear.reduce((sum, value) => sum + value, 0) / avgThreeYear.length)) {
+    insights.push("Recent medium-term returns are running ahead of category peers.");
+  }
+  if (consistencyValue !== null && avgConsistency.length && consistencyValue > (avgConsistency.reduce((sum, value) => sum + value, 0) / avgConsistency.length)) {
+    insights.push("Above-average consistency inside this category.");
+  }
+  if (volatilityValue !== null && avgVolatility.length && volatilityValue < (avgVolatility.reduce((sum, value) => sum + value, 0) / avgVolatility.length)) {
+    insights.push("Lower volatility than most funds in the same category.");
+  }
+  insights.push(trendSignal.tone === "strengthening"
+    ? "Recent performance momentum is improving against its own long-term baseline."
+    : "Recent trend is weakening even though the broader history stays relevant.");
+  if (scoreOf(fund) > Number(summary?.categoryAverageScore || 0)) {
+    insights.push(`Dashboard score sits ${(scoreOf(fund) - Number(summary?.categoryAverageScore || 0)).toFixed(1)} points above the category average.`);
+  }
+  return [...new Set(insights)].slice(0, 4);
+};
+
+const topPerformerDetailMarkup = (fund, funds, summary) => {
+  const trend = topPerformerTrendSignal(fund);
+  const dna = buildFundDna(fund, funds);
+  const whyThisFund = buildWhyThisFund(fund, funds, summary);
+  const metricRows = [
+    ["1Y Return", formatPct(fund.oneYear)],
+    ["3Y Return", formatPct(fund.threeYear)],
+    ["5Y Return", formatPct(fund.fiveYear)],
+    ["Consistency", consistencyOf(fund) === null ? "—" : consistencyOf(fund).toFixed(1)],
+    ["Risk / Volatility", riskLabel(fund)]
+  ];
+  return `
+    <div class="detail-hero">
+      <p class="eyebrow">${escapeHtml(state.category)} | Top Performer</p>
+      <h2>${escapeHtml(fund.fundName)}</h2>
+      <span class="rank-badge">Top performer</span>
+    </div>
+    <article class="insight-card top-performer-inline-card top-performer-detail-card">
+      <div class="inline-insight-trend inline-insight-trend--${trend.tone}">
+        <div class="inline-insight-trend__lead">
+          <strong>${trend.emoji} ${trend.title}</strong>
+        </div>
+        <p>${escapeHtml(trend.summary)}</p>
+      </div>
+      <div class="inline-insight-section">
+        <div class="section-head compact">
+          <div>
+            <p class="eyebrow">Fund DNA</p>
+          </div>
+        </div>
+        <div class="inline-dna-layout">
+          <div class="inline-dna-radar">
+            ${renderFundDnaRadar(dna)}
+          </div>
+          <div class="fund-dna-list inline-dna-list">
+          ${dna.map((item) => `
+            <div class="fund-dna-row fund-dna-row--${item.accent}">
+              <div class="fund-dna-row__head">
+                <strong>${escapeHtml(item.label)}</strong>
+                <span>${escapeHtml(item.displayValue)}</span>
+              </div>
+              <div class="fund-dna-track">
+                <i class="fund-dna-fill" style="--dna-scale:${item.scale.toFixed(3)}"></i>
+              </div>
+            </div>
+          `).join("")}
+          </div>
+        </div>
+      </div>
+      <div class="inline-insight-section">
+        <div class="section-head compact">
+          <div>
+            <p class="eyebrow">Metrics</p>
+          </div>
+        </div>
+        <div class="inline-metric-grid">
+
+  <div class="inline-metric-card">
+    <span>Score</span>
+    <strong>${scoreLabel(scoreOf(fund))}</strong>
+  </div>
+
+  <div class="inline-metric-card">
+    <span>Consistency</span>
+    <strong>${consistencyOf(fund)?.toFixed(1) || "—"}</strong>
+  </div>
+
+  <div class="inline-metric-card">
+    <span>Volatility</span>
+    <strong>${riskLabel(fund)}</strong>
+  </div>
+
+  <div class="inline-metric-card">
+    <span>1Y</span>
+    <strong>${formatPct(fund.oneYear)}</strong>
+  </div>
+
+  <div class="inline-metric-card">
+    <span>3Y</span>
+    <strong>${formatPct(fund.threeYear)}</strong>
+  </div>
+
+  <div class="inline-metric-card">
+    <span>5Y</span>
+    <strong>${formatPct(fund.fiveYear)}</strong>
+  </div>
+
+</div>
+      </div>
+      <div class="inline-insight-section">
+        <div class="fund-insight-why">
+          <div class="section-head compact">
+            <div>
+              <h3>💡 Why this fund?</h3>
+            </div>
+          </div>
+          <ul class="fund-insight-list">
+            ${whyThisFund.map((insight) => `<li>${escapeHtml(insight)}</li>`).join("")}
+          </ul>
+        </div>
+      </div>
+    </article>
+  `;
+};
+
+const openTopPerformerInsight = () => {
+  const summary = summaryForCategory();
+  const funds = allCategoryFunds();
+  const fund = funds[0] || selectedFund();
+  if (!summary || !fund) return;
+  openGlobalModal(topPerformerDetailMarkup(fund, funds, summary), { kind: "detail", size: "wide" });
+};
+
 const openPicker = (target) => {
   state.pickerTarget = target;
   const html = renderPicker();
@@ -670,11 +1088,11 @@ const updateSegmentedPill = (group) => {
 };
 
 const updateAllSegmentedPills = () => {
-  document.querySelectorAll(".dashboard-return-tabs, .ranking-filter, .compare-return-filter, .chip-row, .time-filter").forEach(updateSegmentedPill);
+  document.querySelectorAll(".dashboard-return-tabs, .ranking-filter, .compare-return-filter, .chip-row, .time-filter, .fund-view-toggle").forEach(updateSegmentedPill);
 };
 
 const bindSegmentedPillTracking = () => {
-  document.querySelectorAll(".dashboard-return-tabs, .ranking-filter, .compare-return-filter, .chip-row, .time-filter").forEach((group) => {
+  document.querySelectorAll(".dashboard-return-tabs, .ranking-filter, .compare-return-filter, .chip-row, .time-filter, .fund-view-toggle").forEach((group) => {
     if (!(group instanceof HTMLElement) || group.dataset.pillBound === "true") return;
     group.dataset.pillBound = "true";
     group.addEventListener("scroll", () => updateSegmentedPill(group), { passive: true });
@@ -690,6 +1108,9 @@ const syncControlState = () => {
   });
   document.querySelectorAll(".chip").forEach((button) => {
     button.classList.toggle("active", button.dataset.sort === state.sort);
+  });
+  document.querySelectorAll("[data-fund-view]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.fundView === state.fundView);
   });
   requestAnimationFrame(() => {
     bindSegmentedPillTracking();
@@ -737,6 +1158,13 @@ const renderDashboard = () => {
   $("consistency").textContent = Number.isFinite(Number(fund?.consistency)) ? `${Number(fund.consistency).toFixed(1)} vol` : "—";
   $("totalFunds").textContent = summary.totalFunds;
   $("dashboardInsight").textContent = `${buildHeadlineInsight(fund, funds)} ${storySentence(fund, funds)} It beat the category average in ${outperformCount} of ${history.length} visible periods.`;
+
+  const insightMount = $("topPerformerInsightMount");
+  if (insightMount) {
+    insightMount.innerHTML = "";
+    insightMount.classList.remove("is-open");
+    insightMount.setAttribute("aria-hidden", "true");
+  }
 
   renderPerformanceChart("lineChart", fund, funds);
   $("performanceTooltip").hidden = false;
@@ -850,6 +1278,7 @@ const renderMultiLineSvg = (target, series, labels, tooltipEl = null) => {
 const renderFunds = () => {
   const query = state.query.trim();
   const funds = visibleFunds();
+  const favorites = favoriteFundIds();
   const rankingFilterMount = $("rankingFilterMount");
   if (rankingFilterMount) {
     if (state.sort === "return") {
@@ -871,12 +1300,17 @@ const renderFunds = () => {
     }
   }
   if (!funds.length) {
-    $("fundList").innerHTML = `<div class="list-note">${escapeHtml(`No funds are available in ${state.category} for the current search.`)}</div>`;
+    const emptyCopy = state.fundView === "favorites"
+      ? "No saved funds match this view yet."
+      : `No funds are available in ${state.category} for the current search.`;
+    $("fundList").innerHTML = `<div class="list-note">${escapeHtml(emptyCopy)}</div>`;
     return;
   }
   const note = query
-    ? `Matching funds in ${state.category} | ${formatDate(appData.latestDate)}`
-    : `Top 10 funds in ${state.category} | ${formatDate(appData.latestDate)}`;
+? `Searching all results for "${query}"`
+    : state.fundView === "favorites"
+      ? `Saved funds | ${state.category} funds appear first | ${formatDate(appData.latestDate)}`
+      : `Top 10 funds in ${state.category} | ${formatDate(appData.latestDate)}`;
   $("fundList").innerHTML = `
     <div class="list-note">${escapeHtml(note)}</div>
     ${funds.map((fund) => `
@@ -886,7 +1320,10 @@ const renderFunds = () => {
             <p class="eyebrow">${escapeHtml(fund.category)}</p>
             <h3 class="fund-name">${escapeHtml(fund.fundName)}</h3>
           </div>
-          <div class="rank-badge">#${fund.displayRank || fund.rank}</div>
+          <div class="fund-card-actions">
+            <button class="favorite-toggle ${favorites.has(fund.id) ? "is-active" : ""}" data-favorite-id="${escapeHtml(fund.id)}" aria-label="${favorites.has(fund.id) ? "Remove from saved funds" : "Save fund"}">${favorites.has(fund.id) ? "★" : "☆"}</button>
+            <div class="rank-badge">#${fund.displayRank || fund.rank}</div>
+          </div>
         </div>
         ${state.sort === "consistency" ? `
           <div class="return-strip">
@@ -901,6 +1338,7 @@ const renderFunds = () => {
             <div class="return-pill ${state.horizon === "fiveYear" && state.sort === "return" ? "selected" : ""}"><small>5Y</small><strong>${formatPct(fund.fiveYear)}</strong></div>
           </div>
         `}
+
         <div class="fund-card-bottom">
           <span class="muted">${riskLabel(fund)}</span>
           <strong>${escapeHtml(fund.flag || "Core")}</strong>
@@ -912,6 +1350,14 @@ const renderFunds = () => {
       </article>
     `).join("")}
   `;
+  $("fundList").querySelectorAll("[data-favorite-id]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleFavoriteFund(button.dataset.favoriteId);
+      renderFunds();
+    });
+  });
   document.querySelectorAll("[data-fund-id]").forEach((card) => {
     const openCard = () => {
       const fundId = card.dataset.fundId;
@@ -1032,7 +1478,7 @@ const renderVerticalReturnBarChart = (id, funds) => {
 
   const grid = ticks.map((tick) => {
     const y = baseline - (tick / max) * plotHeight;
-    return `<g><line x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}" stroke="currentColor" opacity=".08"/><text x="6" y="${y + 4}" fill="currentColor" opacity=".55" font-size="9">${tick.toFixed(0)}%</text></g>`;
+    return `<g><line x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}" stroke="rgba(255,255,255,0.08)" opacity=".08"/><text x="6" y="${y + 4}" fill="currentColor" opacity=".55" font-size="9">${tick.toFixed(0)}%</text></g>`;
   }).join("");
 
   const bars = funds.map((fund, index) => {
@@ -1311,6 +1757,74 @@ const setUpdateBanner = (visible) => {
   banner.classList.toggle("visible", visible);
 };
 
+const setUpdateBannerMessage = (message) => {
+  const banner = $("updateBanner");
+  if (!banner) return;
+  banner.textContent = message;
+};
+
+const compareVersionStrings = (left, right) => {
+  const a = String(left || "").split(".").map((part) => Number(part) || 0);
+  const b = String(right || "").split(".").map((part) => Number(part) || 0);
+  const length = Math.max(a.length, b.length);
+  for (let index = 0; index < length; index += 1) {
+    const aValue = a[index] || 0;
+    const bValue = b[index] || 0;
+    if (aValue > bValue) return 1;
+    if (aValue < bValue) return -1;
+  }
+  return 0;
+};
+
+const syncUpdateBannerState = () => {
+  if (waitingServiceWorker) {
+    setUpdateBannerMessage("New version ready — Tap to refresh");
+    setUpdateBanner(true);
+    return;
+  }
+  if (serverUpdateVersion) {
+    setUpdateBannerMessage("New update available • Tap to refresh");
+    setUpdateBanner(true);
+    return;
+  }
+  setUpdateBanner(false);
+};
+
+const checkForServerUpdate = async () => {
+  try {
+    const response = await fetch(UPDATE_CHECK_URL, { cache: "no-store" });
+    if (!response.ok) return;
+    const data = await response.json();
+    if (!data || !data.version) return;
+    const storedVersion = localStorage.getItem(UPDATE_VERSION_KEY);
+    if (!storedVersion) {
+      localStorage.setItem(UPDATE_VERSION_KEY, data.version);
+      return;
+    }
+    if (data.updateAvailable && compareVersionStrings(data.version, storedVersion) > 0) {
+      serverUpdateVersion = data.version;
+    } else if (serverUpdateVersion && data.version === storedVersion) {
+      serverUpdateVersion = null;
+    }
+    syncUpdateBannerState();
+  } catch (error) {
+    console.error("Update check failed", error);
+  }
+};
+
+const scheduleUpdateChecks = () => {
+  window.setTimeout(() => {
+    checkForServerUpdate();
+    if (updateCheckTimer) window.clearInterval(updateCheckTimer);
+    updateCheckTimer = window.setInterval(checkForServerUpdate, UPDATE_CHECK_INTERVAL);
+  }, 2000);
+};
+
+const bindPullToRefreshGuard = () => {
+  /* Keep the hook in place for future refinement, but avoid aggressive
+     touch interception that can block normal app scrolling on mobile. */
+};
+
 const updateInstallButton = () => {
   const button = profileInstallButtonEl();
   if (!button) return;
@@ -1355,7 +1869,7 @@ const openDetail = (fundId) => {
       <h2>${escapeHtml(fund.fundName)}</h2>
       <span class="rank-badge">Rank #${displayRank}</span>
     </div>
-    <div class="detail-grid">
+<div class="detail-grid">
       <div class="mini-stat"><small>Score</small><strong>${scoreLabel(scoreOf(fund))}</strong></div>
       <div class="mini-stat"><small>Trend</small><strong>${trendMarkup(fund.trend)}</strong></div>
       <div class="mini-stat"><small>Risk</small><strong>${riskLabel(fund)}</strong></div>
@@ -1363,9 +1877,13 @@ const openDetail = (fundId) => {
       <div class="mini-stat"><small>3Y</small><strong>${formatPct(fund.threeYear)}</strong></div>
       <div class="mini-stat"><small>5Y</small><strong>${formatPct(fund.fiveYear)}</strong></div>
     </div>
-    <div class="chart-panel"><div class="section-head"><div><p class="eyebrow">Score movement</p><h3>Historical dashboard score</h3></div></div><div id="detailLine" class="line-chart"></div><div id="detailHistoryState" class="chart-tooltip"></div></div>
+     <div class="chart-panel"><div class="section-head"><div><p class="eyebrow">Score movement</p><h3>Historical dashboard score</h3></div></div><div id="detailLine" class="line-chart"></div><div id="detailHistoryState" class="chart-tooltip"></div></div>
     <div class="insight-card primary"><p class="eyebrow">Summary</p><h3>${escapeHtml(fund.fundName)} is ranked #${displayRank} in ${escapeHtml(fund.category)} with dashboard score ${scoreLabel(scoreOf(fund))}.</h3></div>
-    <div class="insight-card"><p class="eyebrow">Parameter contribution</p><div class="parameter-list">${params || "<p class='muted'>Parameter contribution is unavailable for this record.</p>"}</div></div>
+    <div class="insight-card"><div style="display:flex; justify-content:space-between; align-items:center;">
+  <p class="eyebrow">Parameter contribution</p>
+  <p class="eyebrow" style="margin:0;">Score</p>
+</div>
+<div class="parameter-list">${params || "<p class='muted'>Parameter contribution is unavailable for this record.</p>"}</div></div>
     <table class="history-table"><thead><tr><th>Date</th><th>Score</th><th>1Y</th><th>3Y</th><th>5Y</th></tr></thead><tbody>${rows}</tbody></table>
   `;
   if (fundHistory.length) {
@@ -1538,6 +2056,10 @@ const bindEvents = () => {
   $("categoryTrigger").addEventListener("click", () => openPicker("category"));
   $("compareFundATrigger").addEventListener("click", () => openPicker("compareFundA"));
   $("compareFundBTrigger").addEventListener("click", () => openPicker("compareFundB"));
+  const topPerformerCard = $("topPerformerCard");
+  if (topPerformerCard) {
+    bindFundCardInteractions(topPerformerCard, openTopPerformerInsight);
+  }
   $("global-modal-backdrop").addEventListener("click", closeGlobalModal);
   $("global-modal-close").addEventListener("click", closeGlobalModal);
 
@@ -1560,6 +2082,15 @@ const bindEvents = () => {
   document.querySelectorAll(".chip").forEach((chip) => {
     chip.addEventListener("click", () => {
       applyOptionValue("sort", chip.dataset.sort, 0);
+    });
+  });
+
+  document.querySelectorAll("[data-fund-view]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.fundView = button.dataset.fundView || "all";
+      localStorage.setItem("fundpulse-fund-view", state.fundView);
+      renderFunds();
+      syncControlState();
     });
   });
 
@@ -1662,6 +2193,13 @@ const bindEvents = () => {
           window.location.reload();
         }
       }, 800);
+      return;
+    }
+    if (serverUpdateVersion) {
+      localStorage.setItem(UPDATE_VERSION_KEY, serverUpdateVersion);
+      serverUpdateVersion = null;
+      setUpdateBanner(false);
+      window.location.reload();
     }
   });
   $("saveReport").addEventListener("click", () => {
@@ -1672,35 +2210,6 @@ const bindEvents = () => {
     reportWindow.focus();
     setTimeout(() => reportWindow.print(), 300);
   });
-
-  if ("serviceWorker" in navigator && location.protocol !== "file:") {
-    navigator.serviceWorker.register("/service-worker.js").then((registration) => {
-      if (registration.waiting) {
-        waitingServiceWorker = registration.waiting;
-        waitingServiceWorker.postMessage({ type: "SKIP_WAITING" });
-      }
-      registration.addEventListener("updatefound", () => {
-        const installing = registration.installing;
-        if (!installing) return;
-        installing.addEventListener("statechange", () => {
-          if (installing.state === "installed" && navigator.serviceWorker.controller) {
-            waitingServiceWorker = registration.waiting || installing;
-            if (registration.waiting) {
-              registration.waiting.postMessage({ type: "SKIP_WAITING" });
-            }
-          }
-        });
-      });
-      navigator.serviceWorker.addEventListener("controllerchange", () => {
-        const reloadKey = "funalytics-sw-reload";
-        if (!sessionStorage.getItem(reloadKey)) {
-          sessionStorage.setItem(reloadKey, "1");
-          pendingUpdateReload = false;
-          window.location.reload();
-        }
-      });
-    }).catch(() => {});
-  }
 
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
@@ -1718,6 +2227,45 @@ const bindEvents = () => {
 
   window.matchMedia?.("(display-mode: standalone)")?.addEventListener?.("change", updateInstallButton);
   window.addEventListener("resize", () => requestAnimationFrame(updateAllSegmentedPills));
+  bindPullToRefreshGuard();
+};
+
+const registerServiceWorkerWhenIdle = () => {
+  if (!("serviceWorker" in navigator) || location.protocol === "file:") return;
+  const startRegistration = () => {
+    navigator.serviceWorker.register("/service-worker.js").then((registration) => {
+      if (registration.waiting) {
+        waitingServiceWorker = registration.waiting;
+        waitingServiceWorker.postMessage({ type: "SKIP_WAITING" });
+      }
+      registration.addEventListener("updatefound", () => {
+        const installing = registration.installing;
+        if (!installing) return;
+        installing.addEventListener("statechange", () => {
+        if (installing.state === "installed" && navigator.serviceWorker.controller) {
+          waitingServiceWorker = registration.waiting || installing;
+          if (registration.waiting) {
+            registration.waiting.postMessage({ type: "SKIP_WAITING" });
+          }
+          syncUpdateBannerState();
+        }
+      });
+    });
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        const reloadKey = "funalytics-sw-reload";
+        if (!sessionStorage.getItem(reloadKey)) {
+          sessionStorage.setItem(reloadKey, "1");
+          pendingUpdateReload = false;
+          window.location.reload();
+        }
+      });
+    }).catch(() => {});
+  };
+  if ("requestIdleCallback" in window) {
+    window.requestIdleCallback(startRegistration, { timeout: 1200 });
+  } else {
+    window.setTimeout(startRegistration, 180);
+  }
 };
 
 const init = () => {
@@ -1743,4 +2291,5 @@ window.resetOnboarding = () => {
 };
 
 init();
-
+registerServiceWorkerWhenIdle();
+scheduleUpdateChecks();
