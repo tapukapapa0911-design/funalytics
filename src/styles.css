@@ -4,9 +4,9 @@
   --fade-color: rgba(11,15,26,0.9);
   --fade-solid: #0b0f1a;
   --motion-snap: cubic-bezier(0.22, 1, 0.36, 1);
-  --motion-fast: 145ms;
-  --motion-base: 170ms;
-  --motion-slow: 190ms;
+  --motion-fast: 115ms;
+  --motion-base: 145ms;
+  --motion-slow: 170ms;
   --nav-base-height: 60px;
   --nav-safe-bottom: env(safe-area-inset-bottom, 0px);
   --nav-float-gap: 14px;
@@ -27,8 +27,8 @@
   --bad: #ef4444;
   --shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
   --radius: 24px;
-  --card-hover-transform: translateY(-2px) scale(1.01);
-  --card-hover-shadow: 0 10px 22px rgba(0, 0, 0, 0.14);
+  --card-hover-transform: translateY(-1px) scale(1.006);
+  --card-hover-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
   --card-hover-border: rgba(94, 234, 212, 0.22);
 }
 
@@ -886,7 +886,7 @@ input {
   background: var(--surface);
   backdrop-filter: blur(6px);
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.07);
-  transition: transform var(--motion-slow) var(--motion-snap), box-shadow var(--motion-slow) var(--motion-snap), background var(--motion-slow) var(--motion-snap), opacity var(--motion-slow) var(--motion-snap), border-color var(--motion-slow) var(--motion-snap);
+  transition: transform var(--motion-base) var(--motion-snap), box-shadow var(--motion-base) var(--motion-snap), background var(--motion-base) var(--motion-snap), opacity var(--motion-base) var(--motion-snap), border-color var(--motion-base) var(--motion-snap);
   backface-visibility: hidden;
 }
 
@@ -3081,7 +3081,7 @@ body.light .bottom-nav {
   .return-pill,
   .mini-stat,
   .inline-metric-card {
-    transition-duration: 120ms;
+    transition-duration: 95ms;
   }
 
   .metric-card:active,
@@ -3089,24 +3089,24 @@ body.light .bottom-nav {
   .compare-card:active,
   .insight-card:active,
   .chart-panel:active {
-    transform: translateY(-1px) scale(0.995);
+    transform: translateY(-1px) scale(0.992);
   }
 
   .metric-box:active,
   .return-pill:active,
   .mini-stat:active,
   .inline-metric-card:active {
-    transform: translateY(-1px) scale(0.97) translateZ(0);
+    transform: translateY(-1px) scale(0.985) translateZ(0);
     box-shadow:
       0 0 0 1px var(--card-hover-border),
-      0 8px 16px rgba(0, 0, 0, 0.12);
+      0 6px 14px rgba(0, 0, 0, 0.1);
     border-color: var(--card-hover-border);
     background: var(--surface);
-    opacity: 0.98;
+    opacity: 0.99;
   }
 
   .return-pill::after {
-    transition-duration: 120ms;
+    transition-duration: 95ms;
   }
 }
 
@@ -3122,8 +3122,8 @@ body.light .bottom-nav {
 }
 
 .mini-stat:active {
-  transform: scale(0.97);
-  opacity: 0.9;
+  transform: scale(0.985);
+  opacity: 0.98;
 }
 
 .mini-stat small {
