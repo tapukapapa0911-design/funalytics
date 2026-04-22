@@ -3,10 +3,10 @@
   color-scheme: dark;
   --fade-color: rgba(11,15,26,0.9);
   --fade-solid: #0b0f1a;
-  --motion-snap: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --motion-fast: 180ms;
-  --motion-base: 190ms;
-  --motion-slow: 200ms;
+  --motion-snap: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-fast: 145ms;
+  --motion-base: 170ms;
+  --motion-slow: 190ms;
   --nav-base-height: 60px;
   --nav-safe-bottom: env(safe-area-inset-bottom, 0px);
   --nav-float-gap: 14px;
@@ -1245,7 +1245,6 @@ input {
   background: rgba(127,127,127,0.06);
   transition: transform var(--motion-fast) var(--motion-snap), box-shadow var(--motion-fast) var(--motion-snap), border-color var(--motion-fast) var(--motion-snap), background var(--motion-fast) var(--motion-snap);
   box-shadow: none;
-  transition: all 0.18s ease;
   will-change: transform;
   cursor: default;
 }
@@ -2093,24 +2092,15 @@ svg {
   background: rgba(255,255,255,0.05);
   text-align: center;
   flex: 1;
-  transition: 
   position: relative;
   backdrop-filter: blur(6px);
   overflow: hidden;
-  transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-  box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-  border-color 0.35s ease,
-  background 0.35s ease;
   transition: transform var(--motion-fast) var(--motion-snap), box-shadow var(--motion-fast) var(--motion-snap), border-color var(--motion-fast) var(--motion-snap), background var(--motion-fast) var(--motion-snap);
   will-change: transform;
 }
 
 .return-pill:hover {
   transform: translateY(-1px);
-  transition: 
-    background 0.2s ease,
-    box-shadow 0.2s ease,
-    transform 0.15s ease;
   filter: brightness(1.08);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 16px;
@@ -3077,12 +3067,47 @@ body.light .bottom-nav {
   backdrop-filter: blur(8px);
   background: rgba(255, 255, 255, 0.04);
   cursor: pointer;
-  transition: 
-    transform 0.2s ease,
-    background 0.25s ease,
-    box-shadow 0.25s ease;
   transition: transform var(--motion-fast) var(--motion-snap), box-shadow var(--motion-fast) var(--motion-snap), border-color var(--motion-fast) var(--motion-snap), background var(--motion-fast) var(--motion-snap);
   will-change: transform;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .metric-card,
+  .fund-card,
+  .compare-card,
+  .insight-card,
+  .chart-panel,
+  .metric-box,
+  .return-pill,
+  .mini-stat,
+  .inline-metric-card {
+    transition-duration: 120ms;
+  }
+
+  .metric-card:active,
+  .fund-card:active,
+  .compare-card:active,
+  .insight-card:active,
+  .chart-panel:active {
+    transform: translateY(-1px) scale(0.995);
+  }
+
+  .metric-box:active,
+  .return-pill:active,
+  .mini-stat:active,
+  .inline-metric-card:active {
+    transform: translateY(-1px) scale(0.97) translateZ(0);
+    box-shadow:
+      0 0 0 1px var(--card-hover-border),
+      0 8px 16px rgba(0, 0, 0, 0.12);
+    border-color: var(--card-hover-border);
+    background: var(--surface);
+    opacity: 0.98;
+  }
+
+  .return-pill::after {
+    transition-duration: 120ms;
+  }
 }
 
 .mini-stat:hover {
