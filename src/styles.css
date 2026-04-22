@@ -1239,21 +1239,43 @@ input {
 }
 
 .inline-metric-card {
-  padding: 12px;
-  border-radius: 16px;
-  border: 1px solid var(--border);
-  background: rgba(127, 127, 127, 0.08);
+  padding: 11px 10px;
+  border-radius: calc(var(--radius) - 12px);
+  border: 1px solid rgba(0,0,0,0.08);
+  background: rgba(127,127,127,0.06);
   transition: transform var(--motion-fast) var(--motion-snap), box-shadow var(--motion-fast) var(--motion-snap), border-color var(--motion-fast) var(--motion-snap), background var(--motion-fast) var(--motion-snap);
+  box-shadow: none;
+  transition: all 0.18s ease;
   will-change: transform;
   cursor: default;
 }
 
+body:not(.light) .inline-metric-card:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(18, 24, 38, 0.92),
+    rgba(10, 15, 26, 0.96)
+  );
+}
+
+/* LIGHT MODE */
+body.light .inline-metric-card:hover {
+  background: rgba(127,127,127,0.06) !important;
+  border: 1px solid rgba(0,0,0,0.08);
+  border-color: rgba(94, 234, 212, 0.4);
+  box-shadow:
+    0 0 0 1px rgba(94, 234, 212, 0.12),
+    0 8px 18px rgba(0,0,0,0.08);
+}
+
 .inline-metric-card:hover {
   transform: translateY(-1px);
-  box-shadow: 0 3px 8px rgba(0,0,0,0.10);
-  border-color: rgba(255,255,255,0.12);
-  background:
-    linear-gradient(180deg, rgba(18, 24, 38, 0.92), rgba(10, 15, 26, 0.96)) !important;
+  background: var(--surface);
+  box-shadow:
+    0 0 0 1px var(--card-hover-border),
+    var(--card-hover-shadow);
+  border-color: var(--card-hover-border);
+ 
 }
 
 .inline-metric-card:active {
@@ -1769,6 +1791,11 @@ svg {
   gap: 12px;
 }
 
+.fund-list.saved-empty {
+  min-height: clamp(360px, 52vh, 560px);
+  align-content: start;
+}
+
 .fund-selector {
   display: flex;
   gap: 8px;
@@ -1891,6 +1918,51 @@ svg {
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
+}
+
+.saved-empty-state {
+  min-height: clamp(360px, 52vh, 560px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  padding: 28px 18px 12px;
+}
+
+.saved-empty-state__icon {
+  width: 108px;
+  height: 108px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  border: 1px solid rgba(255,255,255,0.08);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+.saved-empty-state__icon svg {
+  width: 48px;
+  height: 48px;
+  display: block;
+}
+
+.saved-empty-state h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(18px, 4.8vw, 22px);
+  line-height: 1.2;
+}
+
+.saved-empty-state p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.45;
+  max-width: 300px;
 }
 
 .fund-card {
@@ -2042,9 +2114,11 @@ svg {
   filter: brightness(1.08);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 16px;
-  box-shadow: 0 3px 8px rgba(0,0,0,0.10);
-  border-color: rgba(255,255,255,0.12);
-  background: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 0 0 1px var(--card-hover-border),
+    var(--card-hover-shadow);
+  border-color: var(--card-hover-border);
+  background: var(--surface);
 }
 
 .return-pill::after {
@@ -3015,10 +3089,11 @@ body.light .bottom-nav {
   transform: translateY(-1px);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 18px;
-  box-shadow: 0 3px 8px rgba(0,0,0,0.10);
-  border-color: rgba(255,255,255,0.12);
-  background:
-    linear-gradient(180deg, rgba(18, 24, 38, 0.92), rgba(10, 15, 26, 0.96));
+  box-shadow:
+    0 0 0 1px var(--card-hover-border),
+    var(--card-hover-shadow);
+  border-color: var(--card-hover-border);
+  background: var(--surface);
 }
 
 .mini-stat:active {

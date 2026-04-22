@@ -1278,6 +1278,7 @@ const renderFunds = () => {
   const query = state.query.trim();
   const funds = visibleFunds();
   const favorites = favoriteFundIds();
+  const fundList = $("fundList");
   const rankingFilterMount = $("rankingFilterMount");
   if (rankingFilterMount) {
     if (state.sort === "return") {
@@ -1298,11 +1299,25 @@ const renderFunds = () => {
       rankingFilterMount.innerHTML = "";
     }
   }
+  fundList?.classList.toggle("saved-empty", !funds.length && state.fundView === "favorites");
   if (!funds.length) {
-    const emptyCopy = state.fundView === "favorites"
-      ? "No saved funds match this view yet."
-      : `No funds are available in ${state.category} for the current search.`;
-    $("fundList").innerHTML = `<div class="list-note">${escapeHtml(emptyCopy)}</div>`;
+    if (state.fundView === "favorites") {
+      fundList.innerHTML = `
+        <div class="saved-empty-state" role="status" aria-live="polite">
+          <div class="saved-empty-state__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3.5 7.5a2 2 0 0 1 2-2H10l2 2h6.5a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2z"></path>
+              <path d="m15.2 11.8.35 1.08h1.14l-.92.66.35 1.08-.92-.67-.92.67.35-1.08-.92-.66h1.14z"></path>
+            </svg>
+          </div>
+          <h3>No saved funds match this view yet.</h3>
+          <p>Funds you save will appear here for quick access.</p>
+        </div>
+      `;
+    } else {
+      const emptyCopy = `No funds are available in ${state.category} for the current search.`;
+      fundList.innerHTML = `<div class="list-note">${escapeHtml(emptyCopy)}</div>`;
+    }
     return;
   }
   const note = query
@@ -1310,7 +1325,7 @@ const renderFunds = () => {
     : state.fundView === "favorites"
       ? `Saved funds | ${state.category} funds appear first | ${formatDate(appData.latestDate)}`
       : `Top 10 funds in ${state.category} | ${formatDate(appData.latestDate)}`;
-  $("fundList").innerHTML = `
+  fundList.innerHTML = `
     <div class="list-note">${escapeHtml(note)}</div>
     ${funds.map((fund) => `
       <article class="fund-card" data-fund-id="${escapeHtml(fund.id)}" role="button" tabindex="0" aria-label="Open ${escapeHtml(fund.fundName)} detail">
