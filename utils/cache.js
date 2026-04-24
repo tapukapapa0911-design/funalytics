@@ -31,5 +31,41 @@ window.LiveDataVersion.cache = (() => {
     return Date.now() - entry.savedAt <= ttlMs;
   };
 
-  return { readJson, writeJson, remove, isFresh };
+  const purgeStaleByPrefix = (prefix, maxAgeMs) => {
+    try {
+      const now = Date.now();
+      const keysToRemove = [];
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index);
+        if (!key || !key.startsWith(prefix)) continue;
+        const entry = readJson(key);
+        if (!entry?.savedAt || (now - Number(entry.savedAt)) > maxAgeMs) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((key) => remove(key));
+      return keysToRemove;
+    } catch {
+      return [];
+    }
+  };
+
+  const purgeKeysOlderThan = (keys, maxAgeMs) => {
+    try {
+      const now = Date.now();
+      const removed = [];
+      keys.forEach((key) => {
+        const entry = readJson(key);
+        if (!entry?.savedAt || (now - Number(entry.savedAt)) > maxAgeMs) {
+          remove(key);
+          removed.push(key);
+        }
+      });
+      return removed;
+    } catch {
+      return [];
+    }
+  };
+
+  return { readJson, writeJson, remove, isFresh, purgeStaleByPrefix, purgeKeysOlderThan };
 })();

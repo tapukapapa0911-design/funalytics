@@ -3,13 +3,19 @@ import { env } from "./config/env.js";
 import { connectToDatabase } from "./config/db.js";
 import { startNavCron, triggerNavUpdate } from "./jobs/navUpdater.js";
 import { logger } from "./utils/logger.js";
+import mongoose from "mongoose";
 
 async function bootstrap() {
   await connectToDatabase();
 
   const app = createApp();
-  app.listen(env.port, () => {
+  const server = app.listen(env.port, () => {
     logger.info(`Live NAV backend listening on port ${env.port}`);
+  });
+
+  server.on("error", (error) => {
+    logger.error("HTTP server failed", error);
+    process.exit(1);
   });
 
   startNavCron();
@@ -19,6 +25,20 @@ async function bootstrap() {
   } catch (error) {
     logger.error("Initial NAV update failed", error.message);
   }
+
+  const shutdown = async (signal) => {
+    logger.info(`Received ${signal}. Shutting down gracefully...`);
+    await new Promise((resolve) => server.close(resolve));
+    try {
+      await mongoose.connection.close(false);
+    } catch (error) {
+      logger.warn("MongoDB close during shutdown failed", error?.message || error);
+    }
+    process.exit(0);
+  };
+
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
 }
 
 bootstrap().catch((error) => {

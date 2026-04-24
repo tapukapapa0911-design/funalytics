@@ -1,13 +1,13 @@
 {
-  "name": "Funalytics Live Data New Theme",
-  "short_name": "Funalytics New",
-  "description": "Mutual Fund Analytics Dashboard - New Theme",
+  "name": "Funalytics Live Data Old Theme",
+  "short_name": "Funalytics Old",
+  "description": "Mutual Fund Analytics Dashboard - Old Theme",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "theme_color": "#4A63FF",
-  "background_color": "#EEF2FB",
+  "theme_color": "#070A12",
+  "background_color": "#070A12",
   "icons": [
     {
       "src": "./icons/light-logo.png",

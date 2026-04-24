@@ -10,7 +10,11 @@ window.LiveDataVersion.liveNavService = (() => {
   const NAV_FALLBACK_KEY = schema.cache.navFallbackKey;
   const MATCH_CACHE_KEY = schema.cache.navMatchMapKey;
   const NAV_TTL_MS = schema.cache.navTtlMs || (30 * 60 * 1000);
+  const FALLBACK_TTL_MS = 24 * 60 * 60 * 1000;
+  const MASTER_TTL_MS = 10 * 60 * 1000;
   const AGREEMENT_TOLERANCE = 0.005;
+  let masterRowsMemo = { savedAt: 0, rows: [] };
+  let masterRowsInFlight = null;
 
   const DEBUG = () => Boolean(
     window.LIVE_CONFIG?.debugNav ||
@@ -28,6 +32,41 @@ window.LiveDataVersion.liveNavService = (() => {
 
   const normalizeDate = (value) => api.parseDisplayDate ? api.parseDisplayDate(value) : String(value || "");
   const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+  const dateValue = (value) => {
+    const iso = normalizeDate(value);
+    if (!iso) return 0;
+    const parsed = new Date(`${iso}T00:00:00`);
+    return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+  };
+
+  const dominantDate = (rows = [], fallback = "") => {
+    const counts = new Map();
+    rows.forEach((row) => {
+      const candidate = normalizeDate(row?.date || row?.latestDate);
+      if (!candidate) return;
+      counts.set(candidate, (counts.get(candidate) || 0) + 1);
+    });
+    if (!counts.size) return normalizeDate(fallback);
+    return [...counts.entries()]
+      .sort((left, right) => {
+        if (right[1] !== left[1]) return right[1] - left[1];
+        return dateValue(right[0]) - dateValue(left[0]);
+      })[0][0] || normalizeDate(fallback);
+  };
+
+  const sanitizeResolvedRows = (rows = [], fallback = "") => {
+    const authoritativeDate = dominantDate(rows, fallback);
+    if (!authoritativeDate) return rows;
+    const authoritativeValue = dateValue(authoritativeDate);
+    return rows.map((row) => {
+      const candidateDate = normalizeDate(row?.date || row?.latestDate);
+      if (!candidateDate) return row;
+      if (dateValue(candidateDate) > authoritativeValue) {
+        return { ...row, date: authoritativeDate, latestDate: authoritativeDate };
+      }
+      return row;
+    });
+  };
 
   const navCache = () => cache.readJson(NAV_CACHE_KEY) || { savedAt: 0, byFundId: {} };
   const fallbackCache = () => cache.readJson(NAV_FALLBACK_KEY) || { savedAt: 0, byFundId: {} };
@@ -50,7 +89,11 @@ window.LiveDataVersion.liveNavService = (() => {
     if (cache.isFresh(fresh, NAV_TTL_MS) && fresh.byFundId?.[fundId]) {
       return fresh.byFundId[fundId];
     }
-    return fallbackCache().byFundId?.[fundId] || null;
+    const fallback = fallbackCache();
+    if (cache.isFresh(fallback, FALLBACK_TTL_MS) && fallback.byFundId?.[fundId]) {
+      return fallback.byFundId[fundId];
+    }
+    return null;
   };
 
   const persistMatch = (fundId, payload) => {
@@ -215,44 +258,68 @@ window.LiveDataVersion.liveNavService = (() => {
   };
 
   const buildMasterRows = async () => {
-    const backendApiBase = window.LIVE_CONFIG?.backendApiBase || window.LiveDataVersion?.config?.backendApiBase || "";
-    const merged = new Map();
+    if ((Date.now() - masterRowsMemo.savedAt) <= MASTER_TTL_MS && masterRowsMemo.rows.length) {
+      return masterRowsMemo.rows;
+    }
+    if (masterRowsInFlight) return masterRowsInFlight;
 
-    try {
-      const amfiRows = await api.fetchAmfiLatestNav();
-      amfiRows.forEach((row) => {
+    const backendApiBase = window.LIVE_CONFIG?.backendApiBase || window.LiveDataVersion?.config?.backendApiBase || "";
+    masterRowsInFlight = (async () => {
+      const merged = new Map();
+      const mergeRow = (row) => {
         const key = String(row.schemeCode || matcher.normalizedName(row.schemeName || ""));
         if (!key) return;
-        merged.set(key, { ...row, source: "amfi-master" });
-      });
-    } catch (error) {
-      warn("amfi master fetch failed", error);
-    }
-
-    if (backendApiBase) {
-      try {
-        const backendFunds = await api.fetchBackendFunds(backendApiBase);
-        if (backendFunds?.length) {
-          backendFunds.forEach((fund) => {
-            const row = {
-              schemeCode: String(fund.schemeCode || ""),
-              schemeName: String(fund.schemeName || ""),
-              isinGrowth: String(fund.isin || ""),
-              nav: Number(fund.nav),
-              date: normalizeDate(fund.navDate),
-              source: "backend-master"
-            };
-            const key = String(row.schemeCode || matcher.normalizedName(row.schemeName || ""));
-            if (!key) return;
-            if (!merged.has(key)) merged.set(key, row);
-          });
+        const existing = merged.get(key);
+        if (!existing) {
+          merged.set(key, row);
+          return;
         }
-      } catch (error) {
-        warn("backend master fetch failed", error);
-      }
-    }
+        const existingDate = dateValue(existing.date);
+        const nextDate = dateValue(row.date);
+        if (nextDate > existingDate || (nextDate === existingDate && row.source === "backend-master")) {
+          merged.set(key, row);
+        }
+      };
 
-    return [...merged.values()].filter((row) => row.schemeCode && row.schemeName);
+      try {
+        const amfiRows = await api.fetchAmfiLatestNav();
+        amfiRows.forEach((row) => mergeRow({ ...row, source: "amfi-master" }));
+      } catch (error) {
+        warn("amfi master fetch failed", error);
+      }
+
+      if (backendApiBase) {
+        try {
+          const backendFunds = await api.fetchBackendFunds(backendApiBase);
+          if (backendFunds?.length) {
+            backendFunds.forEach((fund) => {
+              mergeRow({
+                schemeCode: String(fund.schemeCode || ""),
+                schemeName: String(fund.schemeName || ""),
+                isinGrowth: String(fund.isin || ""),
+                nav: Number(fund.nav),
+                date: normalizeDate(fund.navDate),
+                source: "backend-master"
+              });
+            });
+          }
+        } catch (error) {
+          warn("backend master fetch failed", error);
+        }
+      }
+
+      const rows = sanitizeResolvedRows(
+        [...merged.values()].filter((row) => row.schemeCode && row.schemeName)
+      );
+      masterRowsMemo = { savedAt: Date.now(), rows };
+      return rows;
+    })();
+
+    try {
+      return await masterRowsInFlight;
+    } finally {
+      masterRowsInFlight = null;
+    }
   };
 
   const fetchVerifiedNav = async (fund, candidate) => {
@@ -263,7 +330,7 @@ window.LiveDataVersion.liveNavService = (() => {
       sources.push({
         nav: Number(candidate.nav),
         date: normalizeDate(candidate.date),
-        source: "amfi-master"
+        source: candidate?.source || "amfi-master"
       });
     }
 
@@ -345,12 +412,12 @@ window.LiveDataVersion.liveNavService = (() => {
   const resolveLatestRows = async (funds) => {
     const masterRows = await buildMasterRows();
     const masterIndex = buildMasterIndex(masterRows);
-    return runWithConcurrency(funds, 3, async (fund) => {
+    return sanitizeResolvedRows(await runWithConcurrency(funds, 3, async (fund) => {
       await sleep(100);
       const row = await fetchLiveNav(fund, masterRows, masterIndex);
       log("resolved", fund.fundName, row.source, row.nav);
       return row;
-    });
+    }));
   };
 
   return {

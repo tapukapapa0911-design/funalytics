@@ -45,12 +45,19 @@ To make the frontend prefer the local backend, add before scripts in `index.html
 ```html
 <script>
   window.LIVE_CONFIG = {
-    backendApiBase: "http://localhost:4000"
+    backendApiBase: "https://your-render-service.onrender.com"
   };
 </script>
 ```
 
 If `backendApiBase` is not configured or the backend is unavailable, the app falls back to the existing client-side live NAV resolver automatically.
+
+You can also set it without editing files:
+
+```js
+localStorage.setItem("fundpulse-live-backend-api-base", "https://your-render-service.onrender.com");
+location.reload();
+```
 
 ## Live Data Sources
 

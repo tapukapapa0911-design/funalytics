@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#4A63FF" />
-    <title>Funalytics Live Data New Theme - Mutual Fund Analytics Dashboard</title>
+    <meta name="theme-color" content="#070A12" />
+    <title>Funalytics Live Data Old Theme - Mutual Fund Analytics Dashboard</title>
     <link rel="manifest" href="manifest.json?v=live-1" />
     <link rel="apple-touch-icon" href="icons/light-logo.png" />
     <link rel="stylesheet" href="src/styles.css" />
@@ -347,7 +347,7 @@
             if (node) node.textContent = value;
           };
           set("heroCategory", summary.category);
-          set("heroDate", "Data as of Mar 2026");
+          set("heroDate", data.latestDate ? ("Data as of " + new Date(data.latestDate + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })) : "Latest data");
           set("heroScore", summary.topScore);
           set("topPerformer", summary.topPerformer);
           set("avgReturn", summary.categoryAverageReturn + "%");
@@ -364,12 +364,17 @@
           app.classList.remove("is-loading");
           if (skeleton) skeleton.classList.add("hide");
         }
-      }, 2000);
+      }, 280);
     </script>
     <script>
-      window.LIVE_CONFIG = {
-        backendApiBase: "http://127.0.0.1:4000"
-      };
+      (function () {
+        var storedBase = localStorage.getItem("fundpulse-live-backend-api-base") || "";
+        var urlBase = new URLSearchParams(window.location.search).get("backendApiBase") || "";
+        var resolvedBase = urlBase || storedBase || "http://127.0.0.1:4000";
+        window.LIVE_CONFIG = Object.assign({}, window.LIVE_CONFIG || {}, {
+          backendApiBase: resolvedBase
+        });
+      })();
     </script>
     <script src="mockData/excel-backup.js"></script>
     <script src="mockData/live-nav-snapshot.js"></script>

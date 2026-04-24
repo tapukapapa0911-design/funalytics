@@ -43,7 +43,13 @@ let modalHistoryArmed = false;
 let modalHistoryNavigating = false;
 let serverUpdateVersion = null;
 let updateCheckTimer = null;
-const APP_DATA_STORAGE_KEY = "fundpulse-live-data-v4";
+const APP_DATA_STORAGE_KEY = "fundpulse-live-data-v5";
+const isoDateValue = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return 0;
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T00:00:00`) : new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+};
 
 const $ = (id) => document.getElementById(id);
 const modalRoot = () => $("global-modal");
@@ -75,6 +81,20 @@ function loadStoredData() {
   } catch {
     return null;
   }
+}
+
+function selectPreferredData(stored, injected) {
+  if (!stored) return injected;
+  if (!injected) return stored;
+
+  const storedDate = isoDateValue(stored.latestDate);
+  const injectedDate = isoDateValue(injected.latestDate);
+  if (injectedDate > storedDate) return injected;
+  if (storedDate > injectedDate) return stored;
+
+  const storedFunds = Array.isArray(stored.funds) ? stored.funds.length : 0;
+  const injectedFunds = Array.isArray(injected.funds) ? injected.funds.length : 0;
+  return injectedFunds >= storedFunds ? injected : stored;
 }
 
 function standardizeFundName(value) {
@@ -128,6 +148,7 @@ function normalizeAppData(data) {
   };
 }
 
+appData = selectPreferredData(loadStoredData(), window.FUND_APP_DATA);
 appData = normalizeAppData(appData);
 
 const escapeHtml = (value) => String(value)
@@ -141,11 +162,14 @@ const formatPct = (value, digits = 1) => {
   return `${(value * 100).toFixed(digits)}%`;
 };
 
-const formatDate = (iso) => {
-  if (!iso) return "Data as of latest workbook extract";
+const formatDateValue = (iso) => {
+  if (!iso) return "latest workbook extract";
   const date = new Date(`${iso}T00:00:00`);
-  return `Data as of ${date.toLocaleDateString(undefined, { month: "short", year: "numeric" })}`;
+  if (Number.isNaN(date.getTime())) return "latest workbook extract";
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 };
+
+const formatDate = (iso) => `Data as of ${formatDateValue(iso)}`;
 
 const scoreLabel = (value) => String(Math.round(value || 0));
 const scoreOf = (fund) => fund?.dashboardScore ?? 0;
@@ -269,6 +293,29 @@ const currentRankingMap = (funds = allCategoryFunds()) => {
 };
 
 const summaryForCategory = () => appData.summaries.find((item) => item.category === state.category) || appData.summaries[0];
+
+const latestNavDateForFunds = (funds = []) => {
+  const counts = new Map();
+  funds.forEach((fund) => {
+    if (!Number.isFinite(Number(fund?.latestNav))) return;
+    const candidate = String(fund?.latestDate || "").trim();
+    if (!candidate || !isoDateValue(candidate)) return;
+    counts.set(candidate, (counts.get(candidate) || 0) + 1);
+  });
+
+  if (!counts.size) return null;
+
+  return [...counts.entries()]
+    .sort((left, right) => {
+      if (right[1] !== left[1]) return right[1] - left[1];
+      return isoDateValue(right[0]) - isoDateValue(left[0]);
+    })[0][0];
+};
+
+const latestNavDateForCategory = (category = state.category) => {
+  const funds = allFunds().filter((fund) => fund.category === category);
+  return latestNavDateForFunds(funds) || summaryForCategory()?.latestDate || appData?.latestDate || null;
+};
 
 const historyFor = (fund) => {
   const datasetHistory = fund?.analysisHistory?.[state.dataset] || [];
@@ -1023,8 +1070,7 @@ const switchTab = (tab, direction = 0) => {
   window.location.hash = `#${tab}`;
   syncTabUi();
   nextScreen.style.setProperty("--tab-shift", `${direction * 12}px`);
-  renderChrome();
-  renderAll();
+  renderCurrentView();
   requestAnimationFrame(() => resetViewScroll("auto"));
 };
 
@@ -1168,7 +1214,7 @@ const renderDashboard = () => {
   }).length;
 
   $("heroCategory").textContent = state.category;
-  $("heroDate").textContent = formatDate(summary.latestDate || appData.latestDate);
+  $("heroDate").textContent = formatDate(latestNavDateForCategory(state.category));
   const heroScoreValue = scoreOf(fund);
   $("heroScore").textContent = scoreLabel(heroScoreValue);
   $("heroScoreBadge")?.setAttribute("data-score-tone", scoreTone(heroScoreValue));
@@ -1344,8 +1390,8 @@ const renderFunds = () => {
   const note = query
 ? `Searching all results for "${query}"`
     : state.fundView === "favorites"
-      ? `Saved funds | ${state.category} funds appear first | ${formatDate(appData.latestDate)}`
-      : `Top 10 funds in ${state.category} | ${formatDate(appData.latestDate)}`;
+      ? `Saved funds | ${state.category} funds appear first | ${formatDate(latestNavDateForCategory(state.category))}`
+      : `Top 10 funds in ${state.category} | ${formatDate(latestNavDateForCategory(state.category))}`;
   fundList.innerHTML = `
     <div class="list-note">${escapeHtml(note)}</div>
     ${funds.map((fund) => `
@@ -1787,8 +1833,8 @@ const playSplashAndBoot = () => {
     window.setTimeout(() => {
       splash.hidden = true;
       startExperience();
-    }, 300);
-  }, 300);
+    }, 160);
+  }, 90);
 };
 
 const setUpdateBanner = (visible) => {
@@ -1999,7 +2045,7 @@ const buildReportHtml = () => {
       <section class="cover">
         <p class="badge">${APP_NAME} category report</p>
         <h1>${state.category}</h1>
-        <p class="muted">${formatDate(summary.latestDate)} | ${datasetLabel()} | Built from the Excel-backed dashboard logic for category-level review, ranking, and fund comparison.</p>
+        <p class="muted">${formatDate(latestNavDateForCategory(state.category))} | ${datasetLabel()} | Built from the Excel-backed dashboard logic for category-level review, ranking, and fund comparison.</p>
       </section>
       <div class="grid">
         <div class="card"><h3>Category</h3><p>${state.category}</p></div>
@@ -2238,8 +2284,7 @@ const bindEvents = () => {
     if (nextTab !== state.tab) {
       state.tab = nextTab;
       syncTabUi();
-      renderChrome();
-      renderAll();
+      renderCurrentView();
       requestAnimationFrame(() => resetViewScroll("auto"));
     }
   });

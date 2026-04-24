@@ -39,3 +39,18 @@ To make `live-data-version/index.html` use this backend first, add before app sc
   };
 </script>
 ```
+
+## Production deployment
+
+Deployment files included:
+
+- [render.yaml](C:\Users\ameen\Documents\Codex\2026-04-17-files-mentioned-by-the-user-mutual\mutual-fund-dashboard-app\live-data-version\backend\render.yaml)
+- [.nvmrc](C:\Users\ameen\Documents\Codex\2026-04-17-files-mentioned-by-the-user-mutual\mutual-fund-dashboard-app\live-data-version\backend\.nvmrc)
+- [RENDER_DEPLOY.md](C:\Users\ameen\Documents\Codex\2026-04-17-files-mentioned-by-the-user-mutual\mutual-fund-dashboard-app\live-data-version\backend\RENDER_DEPLOY.md)
+
+The app already:
+
+- respects `PORT`
+- starts cron automatically on boot
+- runs an initial NAV update on startup
+- uses environment-driven MongoDB configuration
