@@ -1,57 +1,57 @@
-/* Funalytics build refresh: 2026-04-22 morning patch */
+/* Funalytics build refresh: 2026-04-19 evening patch */
 :root {
   color-scheme: dark;
-  --fade-color: rgba(11,15,26,0.9);
-  --fade-solid: #0b0f1a;
+  --fade-color: rgba(18, 24, 40, 0.88);
+  --fade-solid: #151a29;
   --motion-snap: cubic-bezier(0.22, 1, 0.36, 1);
-  --motion-fast: 115ms;
-  --motion-base: 145ms;
-  --motion-slow: 170ms;
+  --motion-fast: 95ms;
+  --motion-base: 128ms;
+  --motion-slow: 152ms;
   --nav-base-height: 60px;
   --nav-safe-bottom: env(safe-area-inset-bottom, 0px);
   --nav-float-gap: 14px;
   --nav-height: calc(var(--nav-base-height) + var(--nav-safe-bottom));
   --nav-dock-offset: calc(var(--nav-safe-bottom) + var(--nav-float-gap));
-  --bg: #070a12;
-  --bg-2: #101827;
-  --surface: rgba(18, 24, 38, 0.72);
-  --surface-strong: rgba(31, 41, 59, 0.78);
-  --text: #f8fafc;
-  --muted: #94a3b8;
-  --border: rgba(255, 255, 255, 0.1);
-  --accent: #5eead4;
-  --accent-2: #8b5cf6;
-  --blue: #60a5fa;
+  --bg: #171b29;
+  --bg-2: #283253;
+  --surface: rgba(24, 31, 49, 0.84);
+  --surface-strong: rgba(30, 38, 59, 0.92);
+  --text: #f8fbff;
+  --muted: #9ca9c4;
+  --border: rgba(164, 188, 255, 0.12);
+  --accent: #4a63ff;
+  --accent-2: #58d0ff;
+  --blue: #7bb8ff;
   --good: #22c55e;
   --warn: #f59e0b;
   --bad: #ef4444;
-  --shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+  --shadow: 0 22px 52px rgba(8, 12, 26, 0.32);
   --radius: 24px;
   --card-hover-transform: translateY(-1px) scale(1.006);
   --card-hover-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
-  --card-hover-border: rgba(94, 234, 212, 0.22);
+  --card-hover-border: rgba(95, 184, 255, 0.26);
 }
 
 body.light {
   color-scheme: light;
-  --fade-color: rgba(255,255,255,0.7);
-  --fade-solid: #f7f9fc;
-  --bg: #f7f9fc;
-  --bg-2: #e8eef7;
-  --surface: rgba(255, 255, 255, 0.78);
-  --surface-strong: rgba(255, 255, 255, 0.92);
+  --fade-color: rgba(255,255,255,0.82);
+  --fade-solid: #eef2fb;
+  --bg: #eef2fb;
+  --bg-2: #f8faff;
+  --surface: rgba(255, 255, 255, 0.92);
+  --surface-strong: rgba(255, 255, 255, 0.98);
   --text: #0f172a;
-  --muted: #64748b;
-  --border: rgba(15, 23, 42, 0.09);
-  --accent: #0f766e;
-  --accent-2: #6d28d9;
-  --blue: #2563eb;
-  --shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
-  background-color: #f7f9fc;
+  --muted: #72809b;
+  --border: rgba(74, 99, 255, 0.08);
+  --accent: #4a63ff;
+  --accent-2: #58d0ff;
+  --blue: #58a8ff;
+  --shadow: 0 18px 40px rgba(36, 54, 118, 0.1);
+  background-color: #eef2fb;
   background:
-    radial-gradient(circle at 20% 10%, rgba(14, 165, 151, 0.06), transparent 28%),
-    radial-gradient(circle at 82% 22%, rgba(109, 40, 217, 0.05), transparent 30%),
-    linear-gradient(135deg, #f7f9fc, #e8eef7);
+    radial-gradient(circle at 18% 10%, rgba(88, 208, 255, 0.08), transparent 24%),
+    radial-gradient(circle at 82% 20%, rgba(74, 99, 255, 0.08), transparent 28%),
+    linear-gradient(135deg, #eef2fb, #f8faff);
 }
 
 * {
@@ -85,10 +85,10 @@ body {
   overflow-y: auto;
   width: 100%;
   scroll-behavior: smooth;
-  background-color: #0b0f1a;
+  background-color: #151a29;
 background:
-  radial-gradient(circle at 20% 10%, rgba(94, 234, 212, 0.16), transparent 28%),
-  radial-gradient(circle at 82% 22%, rgba(139, 92, 246, 0.18), transparent 30%),
+  radial-gradient(circle at 18% 10%, rgba(88, 208, 255, 0.16), transparent 26%),
+  radial-gradient(circle at 82% 22%, rgba(74, 99, 255, 0.22), transparent 30%),
   linear-gradient(135deg, var(--bg), var(--bg-2)),
   linear-gradient(to top, var(--fade-solid) 0%, transparent 40%);
   color: var(--text);
@@ -273,8 +273,8 @@ body.light .splash-logo-light {
 }
 
 .primary-action {
-  background: linear-gradient(135deg, var(--accent), var(--blue));
-  color: #031016;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #f8fbff;
 }
 
 .secondary-action {
@@ -323,8 +323,8 @@ body.light .splash-logo-light {
   display: flex;
   flex-direction: column;
   border-radius: 20px;
-  background: rgba(15, 23, 42, 0.96);
-  box-shadow: 0 14px 34px rgba(0,0,0,0.34);
+  background: rgba(9, 20, 43, 0.96);
+  box-shadow: 0 18px 40px rgba(2, 8, 24, 0.34);
   z-index: 1;
   opacity: 1;
   visibility: visible;
@@ -403,8 +403,8 @@ body.light .picker-list button {
 }
 
 body.light .picker-list button.active {
-  background: rgba(15, 118, 110, 0.08);
-  border-color: rgba(15, 118, 110, 0.18);
+  background: rgba(47, 107, 255, 0.08);
+  border-color: rgba(47, 107, 255, 0.2);
 }
 
 body.light .global-modal__content,
@@ -560,7 +560,7 @@ body.light .theme-sun {
   border: 1px solid var(--border);
   border-radius: 20px;
   background:
-    linear-gradient(135deg, rgba(94, 234, 212, 0.11), rgba(139, 92, 246, 0.08)),
+    linear-gradient(135deg, rgba(74, 99, 255, 0.16), rgba(88, 208, 255, 0.1)),
     var(--surface);
   color: var(--text);
   text-align: left;
@@ -581,7 +581,7 @@ body.light .theme-sun {
 .category-trigger:hover,
 .select-wrap:hover {
   transform: translateY(-1px);
-  border-color: rgba(94, 234, 212, 0.22);
+  border-color: rgba(88, 138, 255, 0.28);
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.14);
 }
 
@@ -933,7 +933,7 @@ input {
   box-shadow: 0 12px 28px rgba(0,0,0,0.08);
   border-radius: var(--radius);
   background:
-    linear-gradient(135deg, rgba(94, 234, 212, 0.22), rgba(139, 92, 246, 0.16)),
+    linear-gradient(135deg, rgba(74, 99, 255, 0.2), rgba(88, 208, 255, 0.14)),
     var(--surface);
   transform: translateZ(0);
   animation: heroFloat 4.8s ease-in-out infinite;
@@ -947,7 +947,7 @@ input {
   border-radius: inherit;
   background:
     radial-gradient(circle at 18% 24%, rgba(255,255,255,0.12), transparent 36%),
-    radial-gradient(circle at 78% 30%, rgba(94, 234, 212, 0.09), transparent 34%);
+    radial-gradient(circle at 78% 30%, rgba(88, 208, 255, 0.12), transparent 34%);
   opacity: 0.55;
   pointer-events: none;
   z-index: 0;
@@ -1074,7 +1074,7 @@ input {
   grid-column: 1 / -1;
   min-height: 98px;
   background:
-    linear-gradient(135deg, rgba(94, 234, 212, 0.16), rgba(139, 92, 246, 0.12)),
+    linear-gradient(135deg, rgba(74, 99, 255, 0.16), rgba(88, 208, 255, 0.12)),
     var(--surface-strong);
 }
 
@@ -1160,10 +1160,10 @@ input {
   display: inline-grid;
   place-items: center;
   border-radius: 14px;
-  background: linear-gradient(135deg, #a78bfa, #8b5cf6);
-  color: #111827;
+  background: linear-gradient(135deg, #4a63ff, #58d0ff);
+  color: #f8fbff;
   font-size: 18px;
-  box-shadow: 0 8px 18px rgba(139, 92, 246, 0.22);
+  box-shadow: 0 10px 22px rgba(74, 99, 255, 0.24);
 }
 
 .inline-insight-trend {
@@ -1192,7 +1192,7 @@ input {
 }
 
 .inline-insight-trend--strengthening {
-  border-color: rgba(94, 234, 212, 0.18);
+  border-color: rgba(88, 138, 255, 0.24);
 }
 
 .inline-insight-trend--weakening {
@@ -1262,9 +1262,9 @@ body:not(.light) .inline-metric-card:hover {
 body.light .inline-metric-card:hover {
   background: rgba(127,127,127,0.06) !important;
   border: 1px solid rgba(0,0,0,0.08);
-  border-color: rgba(94, 234, 212, 0.4);
+  border-color: rgba(88, 138, 255, 0.38);
   box-shadow:
-    0 0 0 1px rgba(94, 234, 212, 0.12),
+    0 0 0 1px rgba(88, 138, 255, 0.14),
     0 8px 18px rgba(0,0,0,0.08);
 }
 
@@ -1381,7 +1381,7 @@ body:not(.light) .metric-icon {
 
   box-shadow:
     0 6px 18px rgba(0,0,0,0.25),
-    0 0 8px rgba(94, 234, 212, 0.18);
+    0 0 10px rgba(88, 138, 255, 0.18);
 }
 
 /* LIGHT MODE */
@@ -1425,19 +1425,19 @@ body.light .metric-icon {
 }
 
 .metric-icon.accent {
-  background: linear-gradient(135deg, #5eead4, #2dd4bf);
+  background: linear-gradient(135deg, #4a63ff, #58d0ff);
 }
 
 .metric-icon.blue {
-  background: linear-gradient(135deg, #60a5fa, #3b82f6);
+  background: linear-gradient(135deg, #58a8ff, #4a63ff);
 }
 
 .metric-icon.violet {
-  background: linear-gradient(135deg, #a78bfa, #8b5cf6);
+  background: linear-gradient(135deg, #6375ff, #58d0ff);
 }
 
 .metric-icon.teal {
-  background: linear-gradient(135deg, #2dd4bf, #14b8a6);
+  background: linear-gradient(135deg, #58d0ff, #7bb8ff);
 }
 
 .chart-panel {
@@ -1616,7 +1616,7 @@ svg {
 
 .insight-card.primary {
   background:
-    linear-gradient(135deg, rgba(94, 234, 212, 0.14), rgba(96, 165, 250, 0.08)),
+    linear-gradient(135deg, rgba(74, 99, 255, 0.14), rgba(88, 208, 255, 0.08)),
     var(--surface);
 }
 
@@ -1700,7 +1700,7 @@ svg {
 
 .story-progress:hover {
   transform: translateY(-2px) scale(1.012);
-  background: rgba(94, 234, 212, 0.04);
+  background: rgba(47, 107, 255, 0.05);
   border-color: color-mix(in srgb, var(--accent) 25%, transparent);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
 }
@@ -1824,7 +1824,7 @@ svg {
 
 .fund-selector button:hover {
   transform: translateY(-1px);
-  border-color: rgba(94, 234, 212, 0.22);
+  border-color: rgba(88, 138, 255, 0.28);
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
 }
 
@@ -1906,7 +1906,7 @@ svg {
 .heatmap-name:hover {
   transform: translateY(-1px);
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
-  border-color: rgba(94, 234, 212, 0.18);
+  border-color: rgba(88, 138, 255, 0.24);
 }
 
 .heat-cell-ui {
@@ -2064,7 +2064,7 @@ svg {
   min-width: 42px;
   padding: 8px 9px;
   border-radius: 15px;
-  background: rgba(94, 234, 212, 0.18);
+  background: rgba(63, 124, 255, 0.18);
   color: var(--accent);
   text-align: center;
   font-size: 13px;
@@ -2075,8 +2075,8 @@ svg {
 
 .rank-badge:hover {
   transform: translateY(-2px) scale(1.08);
-  background: rgba(94, 234, 212, 0.28);
-  box-shadow: 0 8px 18px rgba(94, 234, 212, 0.18);
+  background: rgba(63, 124, 255, 0.28);
+  box-shadow: 0 8px 18px rgba(63, 124, 255, 0.18);
 }
 
 .return-strip {
@@ -2129,7 +2129,7 @@ svg {
 .return-pill.selected:hover {
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
   background: color-mix(in srgb, var(--accent) 18%, rgba(255,255,255,0.06));
-  box-shadow: 0 8px 16px rgba(94, 234, 212, 0.1);
+  box-shadow: 0 8px 16px rgba(88, 138, 255, 0.12);
 }
 
 .return-pill:active {
@@ -2494,7 +2494,7 @@ a,
   bottom: 10px;
   width: 3px;
   border-radius: 999px;
-  background: linear-gradient(180deg, #5eead4, #22c55e);
+  background: linear-gradient(180deg, #2f6bff, #8bb4ff);
 }
 
 .picker-list span {
@@ -2586,7 +2586,7 @@ a,
 
 .compare-metric-row:hover {
   transform: translateY(-1px);
-  border-color: rgba(94, 234, 212, 0.22);
+  border-color: rgba(88, 138, 255, 0.28);
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
 }
 
@@ -2669,7 +2669,7 @@ a,
 .mini-list button:hover {
   transform: translateY(-1px);
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
-  border-color: rgba(94, 234, 212, 0.18);
+  border-color: rgba(88, 138, 255, 0.24);
 }
 
 .mini-list span {
@@ -2891,7 +2891,7 @@ body.light .update-banner {
 @keyframes installPulse {
   0%,
   100% { box-shadow: 0 18px 34px rgba(0, 0, 0, 0.18); }
-  50% { box-shadow: 0 18px 38px rgba(94, 234, 212, 0.28); }
+  50% { box-shadow: 0 18px 38px rgba(88, 138, 255, 0.28); }
 }
 
 @keyframes splashPop {
@@ -2958,9 +2958,9 @@ body.light .bottom-nav {
 }
 
 .bottom-nav button.active {
-  background: linear-gradient(180deg, rgba(94, 234, 212, 0.16), rgba(139, 92, 246, 0.12));
+  background: linear-gradient(180deg, rgba(63, 124, 255, 0.2), rgba(122, 167, 255, 0.14));
   color: var(--text);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 4px 12px rgba(94, 234, 212, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 4px 12px rgba(63, 124, 255, 0.16);
   transform: translateY(-2px) scale(0.92);
   font-weight: 700;
   opacity: 1;
@@ -3615,11 +3615,11 @@ body.light .quick-filter-row button.active {
   transition: transform 380ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.fund-dna-row--teal .fund-dna-fill { background: linear-gradient(90deg, #7dd3fc, #99f6e4); }
-.fund-dna-row--violet .fund-dna-fill { background: linear-gradient(90deg, #c084fc, #a78bfa); }
-.fund-dna-row--blue .fund-dna-fill { background: linear-gradient(90deg, #67e8f9, #93c5fd); }
-.fund-dna-row--indigo .fund-dna-fill { background: linear-gradient(90deg, #a78bfa, #818cf8); }
-.fund-dna-row--purple .fund-dna-fill { background: linear-gradient(90deg, #d8b4fe, #c084fc); }
+.fund-dna-row--teal .fund-dna-fill { background: linear-gradient(90deg, #64a8ff, #8cc7ff); }
+.fund-dna-row--violet .fund-dna-fill { background: linear-gradient(90deg, #5f91ff, #89a9ff); }
+.fund-dna-row--blue .fund-dna-fill { background: linear-gradient(90deg, #2f6bff, #8bb4ff); }
+.fund-dna-row--indigo .fund-dna-fill { background: linear-gradient(90deg, #4c7bff, #739cff); }
+.fund-dna-row--purple .fund-dna-fill { background: linear-gradient(90deg, #7fa3ff, #9ebdff); }
 
 .fund-insight-why {
   padding: 18px;
@@ -3866,9 +3866,9 @@ body.light .story-progress:hover {
 .metric-box:hover {
   transform: translateY(-2px) scale(1.02);
   box-shadow:
-    0 0 0 1px rgba(94, 234, 212, 0.4),
+    0 0 0 1px rgba(88, 138, 255, 0.4),
     0 8px 18px rgba(0,0,0,0.18);
-  border-color: rgba(94, 234, 212, 0.4);
+  border-color: rgba(88, 138, 255, 0.4);
   background:
     linear-gradient(180deg, rgba(18, 24, 38, 0.92), rgba(10, 15, 26, 0.96));
 }
@@ -3886,4 +3886,255 @@ body.light .metric-box:hover {
 body.light .return-pill:hover {
   background:
     linear-gradient(180deg, rgba(241, 245, 249, 0.98), rgba(226, 232, 240, 0.96));
+}
+
+/* ── NAV Box (fund card center, between vol and flag) ─────────────────────── */
+.fund-card-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.trend-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.trend-row > :first-child {
+  justify-self: start;
+}
+
+.trend-row > :last-child {
+  justify-self: end;
+  text-align: right;
+}
+
+.nav-box {
+  justify-self: center;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 108px;
+  padding: 8px 14px;
+  border-radius: 15px;
+  border: 1px solid rgba(136, 194, 255, 0.18);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.04));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    0 10px 18px rgba(7, 10, 22, 0.18);
+  line-height: 1;
+}
+
+.nav-box small {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.nav-box strong {
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--text);
+  line-height: 1.1;
+}
+
+body.light .nav-box {
+  border-color: rgba(88, 208, 255, 0.16);
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(240,246,255,0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.75),
+    0 10px 22px rgba(74, 99, 255, 0.08);
+}
+
+.nav-box--empty strong {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+/* Motion polish pass: keep the interface fast and button-like on touch. */
+.fund-card,
+.metric-card,
+.metric-box,
+.chip,
+.segmented button,
+.quick-filter-row button,
+.time-filter button,
+.icon-button,
+.category-trigger,
+.return-pill,
+.mini-stat,
+.inline-metric-card,
+.nav-box {
+  transition:
+    transform var(--motion-fast) var(--motion-snap),
+    opacity var(--motion-fast) var(--motion-snap),
+    background var(--motion-base) var(--motion-snap),
+    border-color var(--motion-base) var(--motion-snap),
+    box-shadow var(--motion-base) var(--motion-snap),
+    color var(--motion-fast) var(--motion-snap);
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.fund-card:active,
+.metric-card:active,
+.metric-box:active,
+.chip:active,
+.segmented button:active,
+.quick-filter-row button:active,
+.time-filter button:active,
+.icon-button:active,
+.category-trigger:active,
+.return-pill:active,
+.mini-stat:active,
+.inline-metric-card:active,
+.nav-box:active {
+  transform: scale(0.986) translateZ(0);
+}
+
+/* Premium motion system: modal, radar, DNA, and contribution bars. */
+.global-modal {
+  transition: opacity 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.global-modal__backdrop {
+  background: rgba(10, 12, 24, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  opacity: 0;
+  transition: opacity 280ms cubic-bezier(0.22, 1, 0.36, 1), backdrop-filter 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.global-modal.open .global-modal__backdrop {
+  opacity: 1;
+}
+
+.global-modal__card,
+.global-modal__card[data-modal-kind="picker"] {
+  transform: translate3d(0, 40px, 0) scale(0.96);
+  opacity: 0;
+  transition:
+    transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.global-modal.open .global-modal__card,
+.global-modal.open .global-modal__card[data-modal-kind="picker"] {
+  transform: translate3d(0, 0, 0) scale(1);
+  opacity: 1;
+}
+
+.fund-radar {
+  overflow: visible;
+  transform-origin: center;
+  transform-box: fill-box;
+  opacity: 0;
+  animation: radarShellIn 520ms cubic-bezier(0.2, 0.9, 0.22, 1.1) forwards;
+  will-change: transform, opacity, filter;
+}
+
+.fund-radar__axis {
+  stroke-dasharray: 240;
+  stroke-dashoffset: 240;
+  animation: radarAxisDraw 420ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: var(--axis-delay, 0ms);
+}
+
+.fund-radar__area {
+  transform-origin: center;
+  transform-box: fill-box;
+  opacity: 0;
+  animation:
+    radarAreaIn 520ms cubic-bezier(0.2, 0.9, 0.22, 1.12) 90ms forwards,
+    radarGlowPulse 900ms ease-out 700ms 1;
+}
+
+.fund-radar__node {
+  transform-origin: center;
+  transform-box: fill-box;
+  opacity: 0;
+  animation: radarNodePop 360ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: var(--node-delay, 0ms);
+}
+
+.fund-radar__label {
+  opacity: 0;
+  filter: blur(4px);
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: radarLabelIn 340ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: var(--label-delay, 150ms);
+}
+
+.fund-dna-fill {
+  transform: scaleX(0);
+  animation: dnaBarGrow 560ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: var(--dna-delay, 140ms);
+  will-change: transform, filter;
+}
+
+.fund-dna-row:hover .fund-dna-fill {
+  filter: brightness(1.08) drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 32%, transparent));
+}
+
+.parameter-track i {
+  width: var(--bar-width, 0);
+  animation: metricBarFill 520ms cubic-bezier(0.2, 0.9, 0.22, 1) forwards;
+  animation-delay: var(--bar-delay, 0ms);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 22%, transparent);
+  will-change: width, transform, filter;
+}
+
+.parameter-row:hover .parameter-track i {
+  filter: brightness(1.08);
+}
+
+@keyframes radarShellIn {
+  0% { opacity: 0; transform: scale(0.68); }
+  72% { opacity: 1; transform: scale(1.03); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes radarAxisDraw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes radarAreaIn {
+  0% { opacity: 0; transform: scale(0.18); }
+  74% { opacity: 1; transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes radarNodePop {
+  0% { opacity: 0; transform: scale(0.3); }
+  70% { opacity: 1; transform: scale(1.18); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes radarLabelIn {
+  0% { opacity: 0; filter: blur(4px); transform: translateY(6px) scale(0.95); }
+  100% { opacity: 1; filter: blur(0); transform: translateY(0) scale(1); }
+}
+
+@keyframes radarGlowPulse {
+  0%, 100% { filter: drop-shadow(0 0 14px rgba(88, 208, 255, 0.18)); }
+  50% { filter: drop-shadow(0 0 22px rgba(88, 208, 255, 0.28)); }
+}
+
+@keyframes dnaBarGrow {
+  0% { transform: scaleX(0); }
+  72% { transform: scaleX(calc(var(--dna-scale, 1) + 0.04)); }
+  100% { transform: scaleX(var(--dna-scale, 1)); }
+}
+
+@keyframes metricBarFill {
+  0% { width: 0; opacity: 0.4; }
+  100% { width: var(--bar-width, 0); opacity: 1; }
 }

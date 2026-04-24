@@ -5,14 +5,14 @@ const APP_NAME = "Funalytics";
 const APP_DESCRIPTION = "Funalytics is a smart mutual fund analytics platform that transforms Excel-based data into clear rankings, performance insights, and decision-ready dashboards.";
 
 const state = {
-  theme: localStorage.getItem("fundpulse-theme-v3") || "dark",
+  theme: localStorage.getItem("fundpulse-live-theme-v1") || "dark",
   category: "Large Cap Fund",
   tab: "dashboard",
   sort: "rank",
   horizon: "oneYear",
   dataset: "new",
   period: "1Y",
-  fundView: localStorage.getItem("fundpulse-fund-view") || "all",
+  fundView: localStorage.getItem("fundpulse-live-fund-view") || "all",
   query: "",
   pickerTarget: "category",
   selectedFundId: null,
@@ -24,22 +24,26 @@ const state = {
 let deferredInstallPrompt = null;
 let canShowInstall = false;
 let isAppReady = false;
-const INSTALL_FLOW_KEY = "install_flow_done";
-const ONBOARDING_KEY = "funalytics_onboarding_done";
-const LEGACY_ONBOARDING_KEY = "onboarding_done";
-const BROWSER_INSTALL_CTA_KEY = "browser_install_cta_enabled";
-const FAVORITES_KEY = "fundpulse-favorite-funds";
-const UPDATE_BANNER_DISMISSED_KEY = "funalytics-update-banner-dismissed";
-const UPDATE_VERSION_KEY = "funalytics-app-version";
-const UPDATE_CHECK_URL = "/update.json";
+const INSTALL_FLOW_KEY = "live_install_flow_done";
+const ONBOARDING_KEY = "funalytics_live_onboarding_done";
+const LEGACY_ONBOARDING_KEY = "live_onboarding_done";
+const BROWSER_INSTALL_CTA_KEY = "live_browser_install_cta_enabled";
+const FAVORITES_KEY = "fundpulse-live-favorite-funds";
+const UPDATE_BANNER_DISMISSED_KEY = "live-funalytics-update-banner-dismissed";
+const UPDATE_VERSION_KEY = "live-funalytics-app-version";
+const UPDATE_CHECK_URL = "./update.json";
 const UPDATE_CHECK_INTERVAL = 10 * 60 * 1000;
 const ONBOARDING_STEPS = 5;
 const LAST_ONBOARDING_INDEX = 4;
 let currentOnboardingIndex = 0;
 let previousHorizonValue = state.horizon;
 const MODAL_ANIMATION_MS = 220;
+const MODAL_HISTORY_KEY = "__funalyticsModal";
+let modalHistoryArmed = false;
+let modalHistoryNavigating = false;
 let serverUpdateVersion = null;
 let updateCheckTimer = null;
+const APP_DATA_STORAGE_KEY = "fundpulse-live-data-v4";
 
 const $ = (id) => document.getElementById(id);
 const modalRoot = () => $("global-modal");
@@ -64,17 +68,19 @@ const routeFromHash = () => {
 
 function loadStoredData() {
   try {
-    const raw = localStorage.getItem("fundpulse-data");
+    const raw = localStorage.getItem(APP_DATA_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return parsed && parsed.analysis === "excel-dashboard" && parsed.funds && parsed.summaries ? parsed : null;
+    return parsed && ["excel-dashboard", "live-dashboard"].includes(parsed.analysis) && parsed.funds && parsed.summaries ? parsed : null;
   } catch {
     return null;
   }
 }
 
 function standardizeFundName(value) {
-  return String(value || "").replace(/\bIcici\b/g, "ICICI");
+  return String(value || "")
+    .replace(/\bIcici\b/g, "ICICI")
+    .replace(/\bPru\b/g, "Prudential");
 }
 
 function extractVolatility(fund) {
@@ -92,13 +98,16 @@ function extractVolatility(fund) {
 
 function normalizeAppData(data) {
   if (!data || !Array.isArray(data.funds) || !Array.isArray(data.summaries)) return data;
+  const duplicateFundName = "Parag Parikh Elss Tax Saver Fund Tax Saver Fund (G)";
   return {
     ...data,
     summaries: data.summaries.map((summary) => ({
       ...summary,
       topPerformer: standardizeFundName(summary.topPerformer)
     })),
-    funds: data.funds.map((fund) => ({
+    funds: data.funds
+      .filter((fund) => String(fund?.fundName || "") !== duplicateFundName)
+      .map((fund) => ({
       ...fund,
       fundName: standardizeFundName(fund.fundName),
       rawFundName: standardizeFundName(fund.rawFundName),
@@ -458,16 +467,25 @@ const openGlobalModal = (html, options = {}) => {
   card.dataset.modalKind = options.kind || "default";
   card.dataset.modalSize = options.size || "default";
   content.innerHTML = html;
+  if (!options.skipHistory && !modalHistoryArmed) {
+    window.history.pushState({ ...(window.history.state || {}), [MODAL_HISTORY_KEY]: true }, "");
+    modalHistoryArmed = true;
+  }
   requestAnimationFrame(() => root.classList.add("open"));
   document.body.classList.add("modal-open");
   return true;
 };
 
-const closeGlobalModal = (immediate = false) => {
+const closeGlobalModal = (immediate = false, options = {}) => {
   const root = modalRoot();
   const content = modalContent();
   const card = modalCard();
   if (!root || !content || !card) return;
+  if (!options.fromHistory && modalHistoryArmed && !modalHistoryNavigating) {
+    modalHistoryNavigating = true;
+    window.history.back();
+    return;
+  }
   root.classList.remove("open");
   root.setAttribute("aria-hidden", "true");
   document.body.classList.remove("modal-open");
@@ -478,6 +496,8 @@ const closeGlobalModal = (immediate = false) => {
       resetModalState();
       content.innerHTML = "";
       root.hidden = true;
+      modalHistoryArmed = false;
+      modalHistoryNavigating = false;
     }
   };
   if (immediate) {
@@ -556,8 +576,8 @@ const setTheme = (theme) => {
   state.theme = theme;
   document.body.classList.toggle("light", theme === "light");
   $("profileThemeValue").textContent = theme === "light" ? "Light" : "Dark";
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#F7F9FC" : "#070A12");
-  localStorage.setItem("fundpulse-theme-v3", theme);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#EEF2FB" : "#4A63FF");
+  localStorage.setItem("fundpulse-live-theme-v1", theme);
 };
 
 const latestMetric = (series, key) => {
@@ -760,9 +780,10 @@ opacity="1" stroke-width="${ring === 1 ? 1.1 : 1}"/>`;
   const axes = dimensions.map((item, index) => {
     const outer = pointFor(1, index);
     const label = pointFor(1.12, index);
+    const labelDelay = 150 + (index * 80);
     return `
-      <line x1="${cx}" y1="${cy}" x2="${outer.x.toFixed(1)}" y2="${outer.y.toFixed(1)}" stroke="currentColor" opacity="0.12"/>
-      <text x="${label.x.toFixed(1)}" y="${label.y.toFixed(1)}" text-anchor="middle" dominant-baseline="central" fill="${isLight ? '#0f172a' : '#e2e8f0'}"
+      <line class="fund-radar__axis" style="--axis-delay:${80 + (index * 45)}ms" x1="${cx}" y1="${cy}" x2="${outer.x.toFixed(1)}" y2="${outer.y.toFixed(1)}" stroke="currentColor" opacity="0.12"/>
+      <text class="fund-radar__label" data-label-index="${index}" style="--label-delay:${labelDelay}ms" x="${label.x.toFixed(1)}" y="${label.y.toFixed(1)}" text-anchor="middle" dominant-baseline="central" fill="${isLight ? '#0f172a' : '#e2e8f0'}"
 opacity="1" font-size="12" font-weight="700">${escapeHtml(item.label)}</text>
     `;
   }).join("");
@@ -772,31 +793,31 @@ opacity="1" font-size="12" font-weight="700">${escapeHtml(item.label)}</text>
   }).join(" ");
   const nodes = dimensions.map((item, index) => {
     const point = pointFor(item.scale, index);
-    return `<circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="4.5" fill="#fff" filter="url(#glow)" stroke="url(#fundRadarStroke)" stroke-width="2"/>`;
+    return `<circle class="fund-radar__node" style="--node-delay:${160 + (index * 60)}ms" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="4.5" fill="#fff" filter="url(#glow)" stroke="url(#fundRadarStroke)" stroke-width="2"/>`;
   }).join("");
   return `
-    <svg viewBox="0 0 ${width} ${height}" class="fund-radar" role="img" aria-label="Fund DNA radar chart">
+    <svg viewBox="0 0 ${width} ${height}" class="fund-radar fund-radar--animated" role="img" aria-label="Fund DNA radar chart">
       <defs>
         <linearGradient id="fundRadarFill" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#67e8f9" stop-opacity="0.28"/>
-          <stop offset="55%" stop-color="#60a5fa" stop-opacity="0.16"/>
-          <stop offset="100%" stop-color="#d946ef" stop-opacity="0.28"/>
+          <stop offset="0%" stop-color="#58d0ff" stop-opacity="0.24"/>
+          <stop offset="55%" stop-color="#4a63ff" stop-opacity="0.18"/>
+          <stop offset="100%" stop-color="#9fc8ff" stop-opacity="0.26"/>
         </linearGradient>
         <linearGradient id="fundRadarStroke" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#67e8f9"/>
-          <stop offset="52%" stop-color="#a78bfa"/>
-          <stop offset="100%" stop-color="#e879f9"/>
+          <stop offset="0%" stop-color="#58d0ff"/>
+          <stop offset="52%" stop-color="#4a63ff"/>
+          <stop offset="100%" stop-color="#9fc8ff"/>
         </linearGradient>
         <radialGradient id="fundRadarGlow" cx="50%" cy="50%" r="60%">
-          <stop offset="0%" stop-color="#67e8f9" stop-opacity="0.32"/>
-          <stop offset="100%" stop-color="#67e8f9" stop-opacity="0"/>
+          <stop offset="0%" stop-color="#58d0ff" stop-opacity="0.28"/>
+          <stop offset="100%" stop-color="#58d0ff" stop-opacity="0"/>
         </radialGradient>
       </defs>
-      <circle cx="${cx}" cy="${cy}" r="${radius * 0.94}" fill="${isLight ? 'rgba(99,102,241,0.08)' : 'url(#fundRadarGlow)'}"/>
+      <circle cx="${cx}" cy="${cy}" r="${radius * 0.94}" fill="${isLight ? 'rgba(88,208,255,0.08)' : 'url(#fundRadarGlow)'}"/>
       ${rings}
       ${axes}
-      <polygon class="fund-radar__area" points="${areaPoints}" fill="${isLight ? 'rgba(99,102,241,0.25)' : 'url(#fundRadarFill)'}"
-stroke="${isLight ? '#6366f1' : 'url(#fundRadarStroke)'}" stroke-width="2.4"/>
+      <polygon class="fund-radar__area" points="${areaPoints}" fill="${isLight ? 'rgba(74,99,255,0.2)' : 'url(#fundRadarFill)'}"
+stroke="${isLight ? '#4a63ff' : 'url(#fundRadarStroke)'}" stroke-width="2.4"/>
       ${nodes}
     </svg>
   `;
@@ -872,14 +893,14 @@ const topPerformerDetailMarkup = (fund, funds, summary) => {
             ${renderFundDnaRadar(dna)}
           </div>
           <div class="fund-dna-list inline-dna-list">
-          ${dna.map((item) => `
-            <div class="fund-dna-row fund-dna-row--${item.accent}">
+          ${dna.map((item, index) => `
+            <div class="fund-dna-row fund-dna-row--${item.accent}" data-dna-index="${index}">
               <div class="fund-dna-row__head">
                 <strong>${escapeHtml(item.label)}</strong>
                 <span>${escapeHtml(item.displayValue)}</span>
               </div>
               <div class="fund-dna-track">
-                <i class="fund-dna-fill" style="--dna-scale:${item.scale.toFixed(3)}"></i>
+                <i class="fund-dna-fill" style="--dna-scale:${item.scale.toFixed(3)}; --dna-delay:${140 + (index * 100)}ms"></i>
               </div>
             </div>
           `).join("")}
@@ -1359,6 +1380,10 @@ const renderFunds = () => {
         </div>
         <div class="trend-row">
           ${trendMarkup(fund.trend)}
+          <div class="nav-box${fund.latestNav != null && Number.isFinite(Number(fund.latestNav)) ? "" : " nav-box--empty"}">
+            <small>NAV</small>
+            <strong>${fund.latestNav != null && Number.isFinite(Number(fund.latestNav)) ? `₹${Number(fund.latestNav).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}</strong>
+          </div>
           <span>Score ${scoreLabel(scoreOf(fund))}</span>
         </div>
       </article>
@@ -1593,7 +1618,7 @@ const renderCompare = () => {
 };
 
 const renderProfile = () => {
-  const stored = localStorage.getItem("fundpulse-upload-name");
+  const stored = localStorage.getItem("fundpulse-live-upload-name");
   $("uploadStatus").textContent = stored ? stored.slice(0, 22) : "Choose .xlsx";
   const installButton = profileInstallButtonEl();
   const installValue = $("installStatus");
@@ -1875,10 +1900,10 @@ const openDetail = (fundId) => {
   const rows = fundHistory.length
     ? fundHistory.map((point) => `<tr><td>${escapeHtml(point.date || "-")}</td><td>${scoreLabel(point.score)}</td><td>${formatPct(point.oneYear)}</td><td>${formatPct(point.threeYear)}</td><td>${formatPct(point.fiveYear)}</td></tr>`).join("")
     : `<tr><td colspan="5">No historical rows available for this fund.</td></tr>`;
-  const params = (fundHistory.slice(-1)[0]?.parameters || fund.parameterBreakdown || []).map((param) => {
+  const params = (fundHistory.slice(-1)[0]?.parameters || fund.parameterBreakdown || []).map((param, index) => {
     const pct = Math.max(0, Math.min(100, Math.round((param.normalized || 0) * 100)));
     const contribution = param.contribution === null || param.contribution === undefined ? "-" : param.contribution.toFixed(1);
-    return `<div class="parameter-row"><div><strong>${escapeHtml(param.label)}</strong><small>${param.value ?? "-"} | rank ${param.rank || "-"}</small></div><span>${contribution}</span><div class="parameter-track"><i style="width:${pct}%"></i></div></div>`;
+    return `<div class="parameter-row"><div><strong>${escapeHtml(param.label)}</strong><small>${param.value ?? "-"} | rank ${param.rank || "-"}</small></div><span>${contribution}</span><div class="parameter-track"><i style="--bar-width:${pct}%; --bar-delay:${120 + (index * 100)}ms"></i></div></div>`;
   }).join("");
   detailContent.innerHTML = `
     <div class="detail-hero">
@@ -1943,7 +1968,7 @@ const buildMiniReportChart = (funds) => {
     const value = scoreOf(fund);
     const barHeight = (value / max) * plotHeight;
     const y = height - padding.bottom - barHeight;
-    const color = index === 0 ? "#0f766e" : "#60a5fa";
+    const color = index === 0 ? "#4a63ff" : "#58d0ff";
     return `<g><rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" rx="14" fill="${color}"/><text x="${x + barWidth / 2}" y="${y - 8}" text-anchor="middle" fill="#0f172a" font-size="11" font-weight="800">${scoreLabel(value)}</text><text x="${x + barWidth / 2}" y="${height - 18}" text-anchor="middle" fill="#64748b" font-size="10" font-weight="700">${escapeHtml(fund.fundName.slice(0, 14))}</text></g>`;
   }).join("");
   return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Top fund dashboard scores">${grid}${bars}</svg>`;
@@ -1964,9 +1989,9 @@ const buildReportHtml = () => {
       .card{border:1px solid #dbe3ef;border-radius:16px;padding:18px;background:#fff;box-shadow:0 10px 28px rgba(15,23,42,.05)}
       .wide{grid-column:1/-1}.two{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}
       table{width:100%;border-collapse:collapse;margin-top:16px;font-size:13px} th,td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:left}
-      .badge{display:inline-block;padding:6px 10px;border-radius:999px;background:#ecfeff;color:#0f766e;font-weight:700;font-size:12px}
+      .badge{display:inline-block;padding:6px 10px;border-radius:999px;background:#edf1ff;color:#4a63ff;font-weight:700;font-size:12px}
       ul{padding-left:18px;line-height:1.7}
-      .cover{padding:28px;border-radius:24px;background:linear-gradient(135deg,#dff7f4,#eef2ff);border:1px solid #dbe3ef;box-shadow:0 12px 36px rgba(15,23,42,.06)}
+      .cover{padding:28px;border-radius:24px;background:linear-gradient(135deg,#f8faff,#eaf0fb);border:1px solid #dbe3ef;box-shadow:0 12px 36px rgba(15,23,42,.06)}
       .cover h1{font-size:34px}.cover p{max-width:720px}
       .chart-box{margin-top:16px;padding:18px;border:1px solid #dbe3ef;border-radius:18px;background:#fff}
       .page-break{page-break-before:always}
@@ -2013,16 +2038,16 @@ const syncStateToData = () => {
 
 const handleUpload = async (file) => {
   if (!file) return;
-  localStorage.setItem("fundpulse-upload-name", file.name);
+  localStorage.setItem("fundpulse-live-upload-name", file.name);
   $("uploadStatus").textContent = file.name.slice(0, 22);
   if (file.name.endsWith(".json")) {
     const reader = new FileReader();
     reader.onload = () => {
       try {
         const parsed = JSON.parse(String(reader.result));
-        if (parsed.analysis !== "excel-dashboard" || !parsed.funds || !parsed.summaries) throw new Error("Invalid data");
+        if (!["excel-dashboard", "live-dashboard"].includes(parsed.analysis) || !parsed.funds || !parsed.summaries) throw new Error("Invalid data");
         appData = normalizeAppData(parsed);
-        localStorage.setItem("fundpulse-data", JSON.stringify(appData));
+        localStorage.setItem(APP_DATA_STORAGE_KEY, JSON.stringify(appData));
         syncStateToData();
         renderAll();
         $("uploadStatus").textContent = "Updated";
@@ -2037,8 +2062,8 @@ const handleUpload = async (file) => {
   try {
     const imported = normalizeAppData(await window.WorkbookImporter.buildDataFromWorkbookFile(file));
     appData = imported;
-    localStorage.removeItem("fundpulse-data");
-    localStorage.setItem("fundpulse-data", JSON.stringify(imported));
+    localStorage.removeItem(APP_DATA_STORAGE_KEY);
+    localStorage.setItem(APP_DATA_STORAGE_KEY, JSON.stringify(imported));
     syncStateToData();
     renderAll();
     $("uploadStatus").textContent = "Updated";
@@ -2067,6 +2092,35 @@ const renderAll = () => {
   }
 };
 
+const renderCurrentView = () => {
+  renderChrome();
+  renderHeaderControls();
+
+  if (state.tab === "dashboard") renderDashboard();
+  if (state.tab === "funds") renderFunds();
+  if (state.tab === "insights") renderInsights();
+  if (state.tab === "compare") renderCompare();
+  if (state.tab === "profile") renderProfile();
+
+  syncControlState();
+};
+
+const persistLiveDataWhenIdle = (data) => {
+  const save = () => {
+    try {
+      localStorage.setItem(APP_DATA_STORAGE_KEY, JSON.stringify(data));
+    } catch (error) {
+      console.warn(`${APP_NAME} live data cache write skipped`, error);
+    }
+  };
+
+  if ("requestIdleCallback" in window) {
+    window.requestIdleCallback(save, { timeout: 1500 });
+  } else {
+    window.setTimeout(save, 120);
+  }
+};
+
 const bindEvents = () => {
   $("themeToggle").addEventListener("click", () => setTheme(state.theme === "dark" ? "light" : "dark"));
   $("profileTheme").addEventListener("click", () => setTheme(state.theme === "dark" ? "light" : "dark"));
@@ -2079,6 +2133,12 @@ const bindEvents = () => {
   }
   $("global-modal-backdrop").addEventListener("click", closeGlobalModal);
   $("global-modal-close").addEventListener("click", closeGlobalModal);
+  window.addEventListener("popstate", () => {
+    const root = modalRoot();
+    if (!root || root.hidden || root.getAttribute("aria-hidden") === "true") return;
+    modalHistoryNavigating = true;
+    closeGlobalModal(false, { fromHistory: true });
+  });
 
   document.querySelectorAll(".bottom-nav [data-tab]").forEach((button) => {
     button.addEventListener("click", () => switchTab(button.dataset.tab, 0));
@@ -2105,7 +2165,7 @@ const bindEvents = () => {
   document.querySelectorAll("[data-fund-view]").forEach((button) => {
     button.addEventListener("click", () => {
       state.fundView = button.dataset.fundView || "all";
-      localStorage.setItem("fundpulse-fund-view", state.fundView);
+      localStorage.setItem("fundpulse-live-fund-view", state.fundView);
       renderFunds();
       syncControlState();
     });
@@ -2240,7 +2300,7 @@ const bindEvents = () => {
 const registerServiceWorkerWhenIdle = () => {
   if (!("serviceWorker" in navigator) || location.protocol === "file:") return;
   const startRegistration = () => {
-    navigator.serviceWorker.register("/service-worker.js").catch(() => {});
+    navigator.serviceWorker.register("./service-worker.js").catch(() => {});
   };
   if ("requestIdleCallback" in window) {
     window.requestIdleCallback(startRegistration, { timeout: 1200 });
@@ -2270,6 +2330,22 @@ window.resetOnboarding = () => {
   localStorage.removeItem(LEGACY_ONBOARDING_KEY);
   location.reload();
 };
+
+window.addEventListener("live-data:updated", (event) => {
+  const nextData = normalizeAppData(event.detail?.data);
+  if (!nextData?.funds || !nextData?.summaries) return;
+  appData = nextData;
+  persistLiveDataWhenIdle(nextData);
+  syncStateToData();
+  if ("requestAnimationFrame" in window) {
+    window.requestAnimationFrame(() => renderCurrentView());
+  } else {
+    renderCurrentView();
+  }
+  if ($("uploadStatus")) {
+    $("uploadStatus").textContent = "Live synced";
+  }
+});
 
 init();
 registerServiceWorkerWhenIdle();

@@ -1,21 +1,33 @@
-const CACHE_NAME = "funalytics-v5.4";
+const CACHE_NAME = "funalytics-live-v3";
 const APP_SHELL = [
-  "/",
-  "/index.html",
-  "/src/styles.css",
-  "/src/app.js",
-  "/src/workbook-import.js",
-  "/assets/app-data.js",
-  "/assets/vendor/jszip.min.js",
-  "/manifest.json?v=2",
-  "/manifest.webmanifest",
-  "/icons/light-logo.png",
-  "/icons/dark-logo.png"
+  "./",
+  "./index.html",
+  "./src/styles.css",
+  "./src/app.js",
+  "./src/bootstrap.js",
+  "./src/workbook-import.js",
+  "./assets/vendor/jszip.min.js",
+  "./constants/schema.js",
+  "./utils/cache.js",
+  "./utils/validation.js",
+  "./services/calculations.js",
+  "./services/apiClients.js",
+  "./services/matcher.js",
+  "./services/dataMapper.js",
+  "./services/navResolver.js",
+  "./services/dataProvider.js",
+  "./mockData/excel-backup.js",
+  "./mockData/excel-backup.json",
+  "./manifest.json?v=live-1",
+  "./manifest.webmanifest",
+  "./icons/light-logo.png",
+  "./icons/dark-logo.png"
 ];
 
 self.addEventListener("install", (event) => {
+  self.skipWaiting(); // 🔥 force update
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
   );
 });
 
@@ -48,10 +60,10 @@ self.addEventListener("fetch", (event) => {
       fetch(request)
         .then((response) => {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put("/index.html", clone));
+          caches.open(CACHE_NAME).then((cache) => cache.put("./index.html", clone));
           return response;
         })
-        .catch(async () => (await caches.match(request)) || (await caches.match("/index.html")))
+        .catch(async () => (await caches.match(request)) || (await caches.match("./index.html")))
     );
     return;
   }

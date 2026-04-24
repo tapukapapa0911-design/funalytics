@@ -390,6 +390,9 @@
         threeYear: row.threeYear,
         fiveYear: row.fiveYear,
         sharpe: row.sharpe,
+        pe: row.pe ?? null,
+        pb: row.pb ?? null,
+        sortino: row.sortino ?? null,
         volatility: row.volatility,
         parameters: row.parameters || []
       });
@@ -412,7 +415,10 @@
         oneYear: latest.oneYear ?? null,
         threeYear: latest.threeYear ?? null,
         fiveYear: latest.fiveYear ?? null,
-        sharpe: latest.sharpe ?? null,
+        sharpe: latest.sharpe ?? [...sortedHistory].reverse().find((item) => item.sharpe !== null && item.sharpe !== undefined)?.sharpe ?? null,
+        pe: latest.pe ?? [...sortedHistory].reverse().find((item) => item.pe !== null && item.pe !== undefined)?.pe ?? null,
+        pb: latest.pb ?? [...sortedHistory].reverse().find((item) => item.pb !== null && item.pb !== undefined)?.pb ?? null,
+        sortino: latest.sortino ?? [...sortedHistory].reverse().find((item) => item.sortino !== null && item.sortino !== undefined)?.sortino ?? null,
         volatility: latest.volatility ?? [...sortedHistory].reverse().find((item) => item.volatility !== null && item.volatility !== undefined)?.volatility ?? null,
         averageReturn: latestReturns.length ? mean(latestReturns) : null,
         dashboardScore: numericScores.length ? Math.round(mean(numericScores)) : 0,
@@ -432,6 +438,9 @@
           threeYear: item.threeYear ?? null,
           fiveYear: item.fiveYear ?? null,
           sharpe: item.sharpe ?? null,
+          pe: item.pe ?? null,
+          pb: item.pb ?? null,
+          sortino: item.sortino ?? null,
           volatility: item.volatility ?? null
         }))
       });

@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#070A12" />
-    <title>Funalytics - Mutual Fund Analytics Dashboard</title>
-    <link rel="manifest" href="/manifest.json?v=2" />
-    <link rel="apple-touch-icon" href="/icons/light-logo.png" />
+    <meta name="theme-color" content="#4A63FF" />
+    <title>Funalytics Live Data New Theme - Mutual Fund Analytics Dashboard</title>
+    <link rel="manifest" href="manifest.json?v=live-1" />
+    <link rel="apple-touch-icon" href="icons/light-logo.png" />
     <link rel="stylesheet" href="src/styles.css" />
   </head>
   <body>
@@ -366,22 +366,23 @@
         }
       }, 2000);
     </script>
-    <script src="assets/app-data.js"></script>
-    <script src="assets/vendor/jszip.min.js"></script>
-    <script src="src/workbook-import.js"></script>
-    <script src="src/app.js"></script>
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function () {
-    navigator.serviceWorker.register('/service-worker.js')
-      .then(function (registration) {
-        console.log('Service Worker registered:', registration);
-      })
-      .catch(function (error) {
-        console.log('Service Worker registration failed:', error);
-      });
-  });
-}
-</script>
+    <script>
+      window.LIVE_CONFIG = {
+        backendApiBase: "http://127.0.0.1:4000"
+      };
+    </script>
+    <script src="mockData/excel-backup.js"></script>
+    <script src="mockData/live-nav-snapshot.js"></script>
+    <script src="constants/schema.js"></script>
+    <script src="utils/cache.js"></script>
+    <script src="utils/validation.js"></script>
+    <script src="services/calculations.js"></script>
+    <script src="services/apiClients.js"></script>
+    <script src="services/matcher.js"></script>
+    <script src="services/dataMapper.js"></script>
+    <script src="services/navResolver.js"></script>
+    <script src="services/liveNavService.js"></script>
+    <script src="services/dataProvider.js"></script>
+    <script src="src/bootstrap.js"></script>
   </body>
 </html>

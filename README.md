@@ -1,39 +1,71 @@
-# FundPulse - Mutual Fund Performance Dashboard
+# live-data-version
 
-FundPulse is a mobile-first mutual fund dashboard prototype generated from:
+This folder is a separate replica of the Funalytics app that keeps the original app untouched.
 
-`C:\Users\ameen\Documents\WORK\Mutual Fund Dashboard .xlsx`
+## What changed
 
-## What is included
+- UI shell is cloned from the current app.
+- Data bootstraps from `mockData/excel-backup.json`.
+- Live refresh attempts use verified AMFI endpoints for:
+  - latest NAV snapshot
+  - historical NAV windows
+- Live data is mapped back into the same normalized `excel-dashboard`-style shape the UI already expects.
 
-- Dashboard screen with category selection, Excel dashboard score ranking, KPI cards, top performer first, category average, line chart, score methodology panel, and AI-style summary.
-- Rankings screen with top 10 by default, full-workbook search, sorting by rank/selected return/consistency, trend labels, and fund cards.
-- Fund detail sheet with historical returns, trend chart, table, score metrics, and consistency heatmap.
-- Fund detail sheet includes parameter contribution bars from the workbook scoring method.
-- Analysis screen with top performer analysis, category health, best category, top funds, and underperformer watchlist.
-- Compare screen for side-by-side category comparison.
-- About screen with theme toggle, install guidance, upload control, print/export, data source status, and credits.
-- Light and dark mode support.
-- Self-contained data bundle in `assets/app-data.js`.
+## Architecture
 
-## Run
+- `constants/schema.js`: workbook-derived scoring weights, cache keys, source definitions
+- `utils/cache.js`: local cache helpers
+- `utils/validation.js`: data-shape safety
+- `services/apiClients.js`: AMFI fetch clients
+- `services/matcher.js`: scheme matching helpers for resilient NAV mapping
+- `services/navResolver.js`: multi-source NAV resolution and caching
+- `services/calculations.js`: workbook-equivalent scoring and return helpers
+- `services/dataMapper.js`: live data -> workbook schema mapping
+- `services/dataProvider.js`: boot, refresh, cache, fallback orchestration
+- `mockData/excel-backup.json`: fallback dataset converted from the workbook export
+- `src/bootstrap.js`: loads cached/backup data first, then refreshes live in the background
+- `backend/`: standalone Node.js + MongoDB NAV ingestion API for production use
 
-Open `index.html` in a browser. No package installation is required for this prototype.
+## Notes
 
-## Update data from a newer workbook
+- The live version keeps the original app contract intact.
+- If live fetch fails or a field is unavailable from verified sources, the app falls back to the cached/backup workbook-converted dataset.
+- This keeps the UI stable while gradually replacing workbook-derived values with live values.
 
-Use an updated workbook with the same sheet structure and run:
+## Backend API Option
 
-```powershell
-python scripts/import_workbook.py "C:\path\to\updated-dashboard.xlsx"
+This folder now includes a backend service at `backend/` that can:
+
+- ingest AMFI NAV daily
+- store all schemes in MongoDB
+- expose REST APIs for the live app
+
+To make the frontend prefer the local backend, add before scripts in `index.html`:
+
+```html
+<script>
+  window.LIVE_CONFIG = {
+    backendApiBase: "http://localhost:4000"
+  };
+</script>
 ```
 
-This regenerates `assets/app-data.js`.
+If `backendApiBase` is not configured or the backend is unavailable, the app falls back to the existing client-side live NAV resolver automatically.
 
-## React Native porting map
+## Live Data Sources
 
-- `src/app.js` state maps cleanly to Zustand or React Context.
-- `src/styles.css` tokens map to a `theme.ts` object.
-- SVG chart functions map to `react-native-svg`, `victory-native`, or `react-native-skia`.
-- The detail sheet maps to `@gorhom/bottom-sheet`.
-- The bottom nav maps to Expo Router tabs.
+| Metric | Source | Frequency | Notes |
+|---|---|---|---|
+| Latest NAV | AMFI NAVAll.txt | Daily | Official, authoritative |
+| 1Y / 3Y / 5Y Returns | mfapi.in -> AMFI fallback | On refresh | Computed via CAGR from NAV history |
+| Sharpe Ratio | Computed from mfapi.in history | On refresh | 1Y window, 252 trading days, RFR=6.5% |
+| Sortino Ratio | Computed from mfapi.in history | On refresh | 1Y window, downside deviation |
+| Volatility | Computed from mfapi.in history | On refresh | Annualized std dev of daily returns |
+| PE Ratio | Excel backup (quarterly manual update) | Static | No free public API for portfolio P/E |
+| PB Ratio | Excel backup (quarterly manual update) | Static | No free public API for portfolio P/B |
+
+Note: PE and PB are portfolio fundamental metrics reported quarterly by AMCs.
+No free, reliable, structured API exists for this data in India as of 2026.
+The most accurate source remains manual quarterly updates from Value Research or AMC factsheets.
+To add live PE/PB: configure a RapidAPI key for `latest-mutual-fund-nav.p.rapidapi.com` and
+override in `dataMapper.js` where `const pe = fund.pe` is set.
