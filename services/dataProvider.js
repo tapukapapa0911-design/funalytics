@@ -43,61 +43,23 @@ window.LiveDataVersion.dataProvider = (() => {
 
   const navDateOf = (data) => data?.liveNavDate || data?.latestDate || "";
 
-  const dominantDateFromRows = (rows = [], fallback = "") => {
-    const counts = new Map();
-    rows.forEach((row) => {
-      const candidate = localIsoDate(row?.date || row?.latestDate);
-      if (!candidate) return;
-      counts.set(candidate, (counts.get(candidate) || 0) + 1);
-    });
-    if (!counts.size) return fallback || "";
-    return [...counts.entries()]
-      .sort((left, right) => {
-        if (right[1] !== left[1]) return right[1] - left[1];
-        return dateValue(right[0]) - dateValue(left[0]);
-      })[0][0] || fallback || "";
-  };
-
-  const sanitizeRowsToDominantDate = (rows = [], fallback = "") => {
-    const authoritativeDate = dominantDateFromRows(rows, fallback);
-    if (!authoritativeDate) return rows;
-    const authoritativeValue = dateValue(authoritativeDate);
-    return rows.map((row) => {
-      const candidateDate = localIsoDate(row?.date || row?.latestDate);
-      if (!candidateDate) return row;
-      if (dateValue(candidateDate) > authoritativeValue) {
-        return { ...row, date: authoritativeDate, latestDate: authoritativeDate };
-      }
-      return row;
-    });
+  const latestDateFromRows = (rows = [], fallback = "") => {
+    const rowLatest = rows
+      .map((row) => localIsoDate(row?.date || row?.latestDate))
+      .filter(Boolean)
+      .sort((left, right) => dateValue(left) - dateValue(right))
+      .at(-1);
+    return rowLatest || fallback || "";
   };
 
   const sanitizeDatasetDates = (data, fallbackData) => {
     const safe = ensureAppShape(data, fallbackData);
-    const authoritativeDate = dominantDateFromRows(
+    const authoritativeDate = latestDateFromRows(
       (safe?.funds || []).map((fund) => ({ latestDate: fund?.liveNavDate || fund?.latestNavDate || null })),
       safe?.liveNavDate || fallbackData?.liveNavDate || ""
     );
-    if (!authoritativeDate) return safe;
-    const authoritativeValue = dateValue(authoritativeDate);
-    let fundsChanged = false;
-
-    const nextFunds = (safe.funds || []).map((fund) => {
-      const candidateDate = localIsoDate(fund?.liveNavDate || fund?.latestNavDate);
-      if (!candidateDate || dateValue(candidateDate) <= authoritativeValue) return fund;
-      fundsChanged = true;
-      return { ...fund, liveNavDate: authoritativeDate };
-    });
-
-    if (!fundsChanged && safe.liveNavDate === authoritativeDate) {
-      return safe;
-    }
-
-    return {
-      ...safe,
-      funds: fundsChanged ? nextFunds : safe.funds,
-      liveNavDate: authoritativeDate
-    };
+    if (!authoritativeDate || safe.liveNavDate === authoritativeDate) return safe;
+    return { ...safe, liveNavDate: authoritativeDate };
   };
 
   const RECENT_SNAPSHOT_WINDOW_MS = 48 * 60 * 60 * 1000;
@@ -149,23 +111,18 @@ window.LiveDataVersion.dataProvider = (() => {
   const snapshotRowsIfFresherThanBackup = (backupLatestDate = "") => {
     const rows = Array.isArray(window.LIVE_NAV_SNAPSHOT?.items) ? window.LIVE_NAV_SNAPSHOT.items : [];
     if (!rows.length) return [];
-    const snapshotDate = dominantDateFromRows(rows, latestSnapshotDate());
+    const snapshotDate = latestSnapshotDate() || latestDateFromRows(rows, "");
     if (dateValue(snapshotDate) > dateValue(backupLatestDate)) return rows;
     return snapshotRowsIfRecent();
   };
 
   const buildSnapshotDataset = (backupData) => {
-    const snapshotRows = sanitizeRowsToDominantDate(
-      snapshotRowsIfFresherThanBackup(backupData?.latestDate),
-      backupData?.latestDate
-    );
+    const snapshotRows = snapshotRowsIfFresherThanBackup(backupData?.latestDate);
     if (!snapshotRows.length) return null;
     const { data: merged } = mapper.mergeLatestNav(backupData, snapshotRows);
-    merged.liveNavDate = latestDateFromRows(snapshotRows, merged.liveNavDate || backupData.liveNavDate || "");
+    merged.liveNavDate = latestSnapshotDate() || latestDateFromRows(snapshotRows, merged.liveNavDate || backupData.liveNavDate || "");
     return sanitizeDatasetDates(merged, backupData);
   };
-
-  const latestDateFromRows = (rows, fallback = "") => dominantDateFromRows(rows, fallback);
 
   const primeAppData = ({ backupData }) => {
     const snapshotData = buildSnapshotDataset(backupData);
@@ -187,10 +144,7 @@ window.LiveDataVersion.dataProvider = (() => {
         return persistDataset(ensureAppShape(snapshotData, safeBackup));
       }
 
-      const latestNavRows = sanitizeRowsToDominantDate(
-        await liveNavService.resolveLatestRows(safeBackup.funds || []),
-        safeBackup.latestDate
-      );
+      const latestNavRows = await liveNavService.resolveLatestRows(safeBackup.funds || []);
       if (!latestNavRows.length) {
         if (snapshotData) return persistDataset(ensureAppShape(snapshotData, safeBackup));
         return persistDataset(safeBackup);

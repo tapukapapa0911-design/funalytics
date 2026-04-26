@@ -39,35 +39,6 @@ window.LiveDataVersion.liveNavService = (() => {
     return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
   };
 
-  const dominantDate = (rows = [], fallback = "") => {
-    const counts = new Map();
-    rows.forEach((row) => {
-      const candidate = normalizeDate(row?.date || row?.latestDate);
-      if (!candidate) return;
-      counts.set(candidate, (counts.get(candidate) || 0) + 1);
-    });
-    if (!counts.size) return normalizeDate(fallback);
-    return [...counts.entries()]
-      .sort((left, right) => {
-        if (right[1] !== left[1]) return right[1] - left[1];
-        return dateValue(right[0]) - dateValue(left[0]);
-      })[0][0] || normalizeDate(fallback);
-  };
-
-  const sanitizeResolvedRows = (rows = [], fallback = "") => {
-    const authoritativeDate = dominantDate(rows, fallback);
-    if (!authoritativeDate) return rows;
-    const authoritativeValue = dateValue(authoritativeDate);
-    return rows.map((row) => {
-      const candidateDate = normalizeDate(row?.date || row?.latestDate);
-      if (!candidateDate) return row;
-      if (dateValue(candidateDate) > authoritativeValue) {
-        return { ...row, date: authoritativeDate, latestDate: authoritativeDate };
-      }
-      return row;
-    });
-  };
-
   const navCache = () => cache.readJson(NAV_CACHE_KEY) || { savedAt: 0, byFundId: {} };
   const fallbackCache = () => cache.readJson(NAV_FALLBACK_KEY) || { savedAt: 0, byFundId: {} };
   const matchCache = () => cache.readJson(MATCH_CACHE_KEY) || { savedAt: 0, mappings: {} };
@@ -112,11 +83,38 @@ window.LiveDataVersion.liveNavService = (() => {
   const chooseBestNav = (values) => {
     const valid = values.filter((entry) => Number.isFinite(Number(entry?.nav)));
     if (!valid.length) return null;
-    if (valid.length === 1) return { chosen: valid[0], warning: true, agreedSources: [valid[0].source] };
+    const sourcePriority = (source = "") => {
+      if (source === "amfi-master") return 4;
+      if (source === "amfi-history") return 3;
+      if (source === "mfapi") return 2;
+      if (source === "mfdata") return 1;
+      return 0;
+    };
+    const ordered = [...valid].sort((left, right) => {
+      const dateDelta = dateValue(right.date) - dateValue(left.date);
+      if (dateDelta !== 0) return dateDelta;
+      return sourcePriority(right.source) - sourcePriority(left.source);
+    });
+    if (ordered.length === 1) return { chosen: ordered[0], warning: true, agreedSources: [ordered[0].source] };
 
-    for (let index = 0; index < valid.length; index += 1) {
-      const base = valid[index];
-      const agreeing = valid.filter((entry) => scoreAgreement(Number(base.nav), Number(entry.nav)));
+    const newestDate = dateValue(ordered[0].date);
+    const newest = ordered.filter((entry) => dateValue(entry.date) === newestDate);
+    const newestAmfi = newest.find((entry) => entry.source === "amfi-master" || entry.source === "amfi-history");
+    if (newestAmfi) {
+      const agreeingNewest = newest.filter((entry) => scoreAgreement(Number(newestAmfi.nav), Number(entry.nav)));
+      if (agreeingNewest.length >= 2) {
+        const avg = agreeingNewest.reduce((sum, entry) => sum + Number(entry.nav), 0) / agreeingNewest.length;
+        return {
+          chosen: { ...newestAmfi, nav: Number(avg.toFixed(4)) },
+          warning: false,
+          agreedSources: agreeingNewest.map((entry) => entry.source)
+        };
+      }
+      return { chosen: newestAmfi, warning: false, agreedSources: [newestAmfi.source] };
+    }
+
+    for (const base of newest) {
+      const agreeing = newest.filter((entry) => scoreAgreement(Number(base.nav), Number(entry.nav)));
       if (agreeing.length >= 2) {
         const avg = agreeing.reduce((sum, entry) => sum + Number(entry.nav), 0) / agreeing.length;
         return {
@@ -127,11 +125,11 @@ window.LiveDataVersion.liveNavService = (() => {
       }
     }
 
-    const amfi = valid.find((entry) => entry.source === "amfi-master" || entry.source === "amfi-history");
+    const amfi = ordered.find((entry) => entry.source === "amfi-master" || entry.source === "amfi-history");
     return {
-      chosen: amfi || valid[0],
+      chosen: amfi || ordered[0],
       warning: true,
-      agreedSources: [amfi?.source || valid[0].source]
+      agreedSources: [amfi?.source || ordered[0].source]
     };
   };
 
@@ -308,9 +306,7 @@ window.LiveDataVersion.liveNavService = (() => {
         }
       }
 
-      const rows = sanitizeResolvedRows(
-        [...merged.values()].filter((row) => row.schemeCode && row.schemeName)
-      );
+      const rows = [...merged.values()].filter((row) => row.schemeCode && row.schemeName);
       masterRowsMemo = { savedAt: Date.now(), rows };
       return rows;
     })();
@@ -412,12 +408,12 @@ window.LiveDataVersion.liveNavService = (() => {
   const resolveLatestRows = async (funds) => {
     const masterRows = await buildMasterRows();
     const masterIndex = buildMasterIndex(masterRows);
-    return sanitizeResolvedRows(await runWithConcurrency(funds, 3, async (fund) => {
+    return runWithConcurrency(funds, 3, async (fund) => {
       await sleep(100);
       const row = await fetchLiveNav(fund, masterRows, masterIndex);
       log("resolved", fund.fundName, row.source, row.nav);
       return row;
-    }));
+    });
   };
 
   return {

@@ -308,6 +308,7 @@
       window.FUND_APP_DATA = window.FUND_APP_DATA || {
         analysis: "fallback",
         latestDate: "2026-03-31",
+        liveNavDate: null,
         categories: ["Large Cap Fund"],
         summaries: [{
           category: "Large Cap Fund",
@@ -347,7 +348,8 @@
             if (node) node.textContent = value;
           };
           set("heroCategory", summary.category);
-          set("heroDate", data.latestDate ? ("Data as of " + new Date(data.latestDate + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })) : "Latest data");
+          var displayDate = data.liveNavDate || "";
+          set("heroDate", displayDate ? ("Data as of " + new Date(displayDate + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })) : "Latest NAV syncing");
           set("heroScore", summary.topScore);
           set("topPerformer", summary.topPerformer);
           set("avgReturn", summary.categoryAverageReturn + "%");
@@ -379,18 +381,18 @@
         });
       })();
     </script>
-    <script src="mockData/excel-backup.js?v=2026-04-26-navfix3"></script>
-    <script src="mockData/live-nav-snapshot.js?v=2026-04-26-navfix3"></script>
-    <script src="constants/schema.js?v=2026-04-26-navfix3"></script>
-    <script src="utils/cache.js?v=2026-04-26-navfix3"></script>
-    <script src="utils/validation.js?v=2026-04-26-navfix3"></script>
-    <script src="services/calculations.js?v=2026-04-26-navfix3"></script>
-    <script src="services/apiClients.js?v=2026-04-26-navfix3"></script>
-    <script src="services/matcher.js?v=2026-04-26-navfix3"></script>
-    <script src="services/dataMapper.js?v=2026-04-26-navfix3"></script>
-    <script src="services/navResolver.js?v=2026-04-26-navfix3"></script>
-    <script src="services/liveNavService.js?v=2026-04-26-navfix3"></script>
-    <script src="services/dataProvider.js?v=2026-04-26-navfix3"></script>
-    <script src="src/bootstrap.js?v=2026-04-26-navfix3"></script>
+    <script src="mockData/excel-backup.js?v=2026-04-27-navfix6"></script>
+    <script src="mockData/live-nav-snapshot.js?v=2026-04-27-navfix6"></script>
+    <script src="constants/schema.js?v=2026-04-27-navfix6"></script>
+    <script src="utils/cache.js?v=2026-04-27-navfix6"></script>
+    <script src="utils/validation.js?v=2026-04-27-navfix6"></script>
+    <script src="services/calculations.js?v=2026-04-27-navfix6"></script>
+    <script src="services/apiClients.js?v=2026-04-27-navfix6"></script>
+    <script src="services/matcher.js?v=2026-04-27-navfix6"></script>
+    <script src="services/dataMapper.js?v=2026-04-27-navfix6"></script>
+    <script src="services/navResolver.js?v=2026-04-27-navfix6"></script>
+    <script src="services/liveNavService.js?v=2026-04-27-navfix6"></script>
+    <script src="services/dataProvider.js?v=2026-04-27-navfix6"></script>
+    <script src="src/bootstrap.js?v=2026-04-27-navfix6"></script>
   </body>
 </html>

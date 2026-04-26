@@ -43,7 +43,7 @@ let modalHistoryArmed = false;
 let modalHistoryNavigating = false;
 let serverUpdateVersion = null;
 let updateCheckTimer = null;
-const APP_DATA_STORAGE_KEY = "fundpulse-live-data-v6";
+const APP_DATA_STORAGE_KEY = "fundpulse-live-data-v7";
 const isoDateValue = (value) => {
   const raw = String(value || "").trim();
   if (!raw) return 0;
@@ -290,21 +290,12 @@ const currentRankingMap = (funds = allCategoryFunds()) => {
 const summaryForCategory = () => appData.summaries.find((item) => item.category === state.category) || appData.summaries[0];
 
 const latestNavDateForFunds = (funds = []) => {
-  const counts = new Map();
-  funds.forEach((fund) => {
-    if (!Number.isFinite(Number(fund?.latestNav))) return;
-    const candidate = String(fund?.liveNavDate || fund?.latestNavDate || "").trim();
-    if (!candidate || !isoDateValue(candidate)) return;
-    counts.set(candidate, (counts.get(candidate) || 0) + 1);
-  });
-
-  if (!counts.size) return null;
-
-  return [...counts.entries()]
-    .sort((left, right) => {
-      if (right[1] !== left[1]) return right[1] - left[1];
-      return isoDateValue(right[0]) - isoDateValue(left[0]);
-    })[0][0];
+  return funds
+    .filter((fund) => Number.isFinite(Number(fund?.latestNav)))
+    .map((fund) => String(fund?.liveNavDate || fund?.latestNavDate || "").trim())
+    .filter((candidate) => candidate && isoDateValue(candidate))
+    .sort((left, right) => isoDateValue(left) - isoDateValue(right))
+    .at(-1) || null;
 };
 
 const latestNavDateForCategory = (category = state.category) => {
@@ -618,7 +609,7 @@ const setTheme = (theme) => {
   state.theme = theme;
   document.body.classList.toggle("light", theme === "light");
   $("profileThemeValue").textContent = theme === "light" ? "Light" : "Dark";
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#EEF2FB" : "#4A63FF");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#EEF2FB" : "#070A12");
   localStorage.setItem("fundpulse-live-theme-v1", theme);
 };
 
