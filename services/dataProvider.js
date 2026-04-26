@@ -41,6 +41,8 @@ window.LiveDataVersion.dataProvider = (() => {
     return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
   };
 
+  const navDateOf = (data) => data?.liveNavDate || data?.latestDate || "";
+
   const dominantDateFromRows = (rows = [], fallback = "") => {
     const counts = new Map();
     rows.forEach((row) => {
@@ -72,38 +74,56 @@ window.LiveDataVersion.dataProvider = (() => {
 
   const sanitizeDatasetDates = (data, fallbackData) => {
     const safe = ensureAppShape(data, fallbackData);
-    const authoritativeDate = dominantDateFromRows(safe?.funds || [], safe?.latestDate || fallbackData?.latestDate || "");
+    const authoritativeDate = dominantDateFromRows(
+      (safe?.funds || []).map((fund) => ({ latestDate: fund?.liveNavDate || fund?.latestNavDate || null })),
+      safe?.liveNavDate || fallbackData?.liveNavDate || ""
+    );
     if (!authoritativeDate) return safe;
     const authoritativeValue = dateValue(authoritativeDate);
     let fundsChanged = false;
-    let summariesChanged = false;
 
     const nextFunds = (safe.funds || []).map((fund) => {
-      const candidateDate = localIsoDate(fund?.latestDate);
+      const candidateDate = localIsoDate(fund?.liveNavDate || fund?.latestNavDate);
       if (!candidateDate || dateValue(candidateDate) <= authoritativeValue) return fund;
       fundsChanged = true;
-      return { ...fund, latestDate: authoritativeDate };
+      return { ...fund, liveNavDate: authoritativeDate };
     });
 
-    const nextSummaries = (safe.summaries || []).map((summary) => {
-      if (summary?.latestDate === authoritativeDate) return summary;
-      summariesChanged = true;
-      return { ...summary, latestDate: authoritativeDate };
-    });
-
-    if (!fundsChanged && !summariesChanged && safe.latestDate === authoritativeDate) {
+    if (!fundsChanged && safe.liveNavDate === authoritativeDate) {
       return safe;
     }
 
     return {
       ...safe,
       funds: fundsChanged ? nextFunds : safe.funds,
-      summaries: summariesChanged ? nextSummaries : safe.summaries,
-      latestDate: authoritativeDate
+      liveNavDate: authoritativeDate
     };
   };
 
   const RECENT_SNAPSHOT_WINDOW_MS = 48 * 60 * 60 * 1000;
+
+  const pickFresherDataset = (left, right, fallbackData) => {
+    const safeLeft = left ? sanitizeDatasetDates(left, fallbackData) : null;
+    const safeRight = right ? sanitizeDatasetDates(right, fallbackData) : null;
+    if (!safeLeft) return safeRight;
+    if (!safeRight) return safeLeft;
+
+    const leftDate = dateValue(navDateOf(safeLeft));
+    const rightDate = dateValue(navDateOf(safeRight));
+    if (rightDate > leftDate) return safeRight;
+    if (leftDate > rightDate) return safeLeft;
+
+    const leftFunds = Array.isArray(safeLeft.funds) ? safeLeft.funds.length : 0;
+    const rightFunds = Array.isArray(safeRight.funds) ? safeRight.funds.length : 0;
+    return rightFunds >= leftFunds ? safeRight : safeLeft;
+  };
+
+  const readCachedDataset = (backupData) => {
+    const cached = cache.readJson(schema.cache.datasetKey);
+    return cache.isFresh(cached, schema.cache.ttlMs) && cached?.data
+      ? sanitizeDatasetDates(cached.data, backupData)
+      : null;
+  };
 
   const isSnapshotRecent = () => {
     const rows = Array.isArray(window.LIVE_NAV_SNAPSHOT?.items) ? window.LIVE_NAV_SNAPSHOT.items : [];
@@ -126,20 +146,30 @@ window.LiveDataVersion.dataProvider = (() => {
     return isSnapshotRecent() ? rows : [];
   };
 
+  const snapshotRowsIfFresherThanBackup = (backupLatestDate = "") => {
+    const rows = Array.isArray(window.LIVE_NAV_SNAPSHOT?.items) ? window.LIVE_NAV_SNAPSHOT.items : [];
+    if (!rows.length) return [];
+    const snapshotDate = dominantDateFromRows(rows, latestSnapshotDate());
+    if (dateValue(snapshotDate) > dateValue(backupLatestDate)) return rows;
+    return snapshotRowsIfRecent();
+  };
+
+  const buildSnapshotDataset = (backupData) => {
+    const snapshotRows = sanitizeRowsToDominantDate(
+      snapshotRowsIfFresherThanBackup(backupData?.latestDate),
+      backupData?.latestDate
+    );
+    if (!snapshotRows.length) return null;
+    const { data: merged } = mapper.mergeLatestNav(backupData, snapshotRows);
+    merged.liveNavDate = latestDateFromRows(snapshotRows, merged.liveNavDate || backupData.liveNavDate || "");
+    return sanitizeDatasetDates(merged, backupData);
+  };
+
   const latestDateFromRows = (rows, fallback = "") => dominantDateFromRows(rows, fallback);
 
   const primeAppData = ({ backupData }) => {
-    const cached = cache.readJson(schema.cache.datasetKey);
-    if (cache.isFresh(cached, schema.cache.ttlMs) && cached?.data) {
-      return sanitizeDatasetDates(cached.data, backupData);
-    }
-    const snapshotRows = sanitizeRowsToDominantDate(snapshotRowsIfRecent(), backupData.latestDate);
-    if (snapshotRows.length) {
-      const { data: merged } = mapper.mergeLatestNav(backupData, snapshotRows);
-      merged.latestDate = latestDateFromRows(snapshotRows, merged.latestDate || backupData.latestDate);
-      return sanitizeDatasetDates(merged, backupData);
-    }
-    return sanitizeDatasetDates(backupData, backupData);
+    const snapshotData = buildSnapshotDataset(backupData);
+    return pickFresherDataset(snapshotData, sanitizeDatasetDates(backupData, backupData), backupData);
   };
 
   const persistDataset = (data) => {
@@ -150,27 +180,33 @@ window.LiveDataVersion.dataProvider = (() => {
 
   const refreshAppData = async ({ backupData, forceLive = false }) => {
     const safeBackup = ensureAppShape(backupData, backupData) || await readBackupData();
+    const snapshotData = buildSnapshotDataset(safeBackup);
 
     try {
-      const snapshotRows = forceLive ? [] : sanitizeRowsToDominantDate(snapshotRowsIfRecent(), safeBackup.latestDate);
-      if (snapshotRows.length) {
-        const { data: snapshotMerged } = mapper.mergeLatestNav(safeBackup, snapshotRows);
-        snapshotMerged.latestDate = latestDateFromRows(snapshotRows, snapshotMerged.latestDate || safeBackup.latestDate);
-        return persistDataset(ensureAppShape(snapshotMerged, safeBackup));
+      if (!forceLive && snapshotData) {
+        return persistDataset(ensureAppShape(snapshotData, safeBackup));
       }
 
       const latestNavRows = sanitizeRowsToDominantDate(
         await liveNavService.resolveLatestRows(safeBackup.funds || []),
         safeBackup.latestDate
       );
+      if (!latestNavRows.length) {
+        if (snapshotData) return persistDataset(ensureAppShape(snapshotData, safeBackup));
+        return persistDataset(safeBackup);
+      }
       const { data: merged } = mapper.mergeLatestNav(safeBackup, latestNavRows);
-      merged.latestDate = latestDateFromRows(latestNavRows, merged.latestDate || safeBackup.latestDate);
+      merged.liveNavDate = latestDateFromRows(latestNavRows, merged.liveNavDate || safeBackup.liveNavDate || "");
       return persistDataset(ensureAppShape(merged, safeBackup));
     } catch (error) {
       console.warn("[live-data-version] Latest NAV refresh failed, using cache/backup:", error);
-      const cached = cache.readJson(schema.cache.datasetKey);
-      if (cached?.data) return ensureAppShape(cached.data, safeBackup);
-      return safeBackup;
+      const cachedData = readCachedDataset(safeBackup);
+      const fallback = pickFresherDataset(
+        pickFresherDataset(cachedData, snapshotData, safeBackup),
+        sanitizeDatasetDates(safeBackup, safeBackup),
+        safeBackup
+      );
+      return persistDataset(ensureAppShape(fallback, safeBackup));
     }
   };
 

@@ -43,13 +43,15 @@ let modalHistoryArmed = false;
 let modalHistoryNavigating = false;
 let serverUpdateVersion = null;
 let updateCheckTimer = null;
-const APP_DATA_STORAGE_KEY = "fundpulse-live-data-v5";
+const APP_DATA_STORAGE_KEY = "fundpulse-live-data-v6";
 const isoDateValue = (value) => {
   const raw = String(value || "").trim();
   if (!raw) return 0;
   const parsed = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T00:00:00`) : new Date(raw);
   return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
 };
+
+const navDateOf = (data) => data?.liveNavDate || data?.latestDate || "";
 
 const $ = (id) => document.getElementById(id);
 const modalRoot = () => $("global-modal");
@@ -73,22 +75,15 @@ const routeFromHash = () => {
 };
 
 function loadStoredData() {
-  try {
-    const raw = localStorage.getItem(APP_DATA_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed && ["excel-dashboard", "live-dashboard"].includes(parsed.analysis) && parsed.funds && parsed.summaries ? parsed : null;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 function selectPreferredData(stored, injected) {
   if (!stored) return injected;
   if (!injected) return stored;
 
-  const storedDate = isoDateValue(stored.latestDate);
-  const injectedDate = isoDateValue(injected.latestDate);
+  const storedDate = isoDateValue(navDateOf(stored));
+  const injectedDate = isoDateValue(navDateOf(injected));
   if (injectedDate > storedDate) return injected;
   if (storedDate > injectedDate) return stored;
 
@@ -298,7 +293,7 @@ const latestNavDateForFunds = (funds = []) => {
   const counts = new Map();
   funds.forEach((fund) => {
     if (!Number.isFinite(Number(fund?.latestNav))) return;
-    const candidate = String(fund?.latestDate || "").trim();
+    const candidate = String(fund?.liveNavDate || fund?.latestNavDate || "").trim();
     if (!candidate || !isoDateValue(candidate)) return;
     counts.set(candidate, (counts.get(candidate) || 0) + 1);
   });
@@ -314,7 +309,7 @@ const latestNavDateForFunds = (funds = []) => {
 
 const latestNavDateForCategory = (category = state.category) => {
   const funds = allFunds().filter((fund) => fund.category === category);
-  return latestNavDateForFunds(funds) || summaryForCategory()?.latestDate || appData?.latestDate || null;
+  return latestNavDateForFunds(funds) || appData?.liveNavDate || null;
 };
 
 const historyFor = (fund) => {

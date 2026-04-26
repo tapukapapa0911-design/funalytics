@@ -1,14 +1,16 @@
 (async () => {
   const MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000;
+  const BUILD_VERSION = "2026-04-26-navfix3";
 
   const loadScript = (src) => new Promise((resolve, reject) => {
+    const versionedSrc = src.includes("?") ? `${src}&v=${BUILD_VERSION}` : `${src}?v=${BUILD_VERSION}`;
     const existing = document.querySelector(`script[data-live-src="${src}"]`);
     if (existing) {
       resolve();
       return;
     }
     const script = document.createElement("script");
-    script.src = src;
+    script.src = versionedSrc;
     script.async = false;
     script.dataset.liveSrc = src;
     script.onload = () => resolve();
@@ -41,6 +43,18 @@
     return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
   };
 
+  const navDateOf = (data) => data?.liveNavDate || data?.latestDate || "";
+
+  const shouldReplaceDataset = (currentData, nextData) => {
+    const currentDate = isoDateValue(navDateOf(currentData));
+    const nextDate = isoDateValue(navDateOf(nextData));
+    if (nextDate > currentDate) return true;
+    if (currentDate > nextDate) return false;
+    const currentFunds = Array.isArray(currentData?.funds) ? currentData.funds.length : 0;
+    const nextFunds = Array.isArray(nextData?.funds) ? nextData.funds.length : 0;
+    return nextFunds >= currentFunds;
+  };
+
   const DATA_FRESHNESS_WINDOW_MS = 36 * 60 * 60 * 1000;
   const isRecentNavDate = (value) => {
     const time = isoDateValue(value);
@@ -70,12 +84,11 @@
     if (!cacheApi || !schema?.cache) return;
     cacheApi.purgeStaleByPrefix?.("live-funalytics", MAX_CACHE_AGE_MS);
     cacheApi.purgeKeysOlderThan?.([schema.cache.datasetKey], MAX_CACHE_AGE_MS);
+    cacheApi.remove?.("fundpulse-live-data-v5");
   };
 
   const preloadLiveIfNeeded = async (dataProvider, backupData, bootData) => {
-    const backendApiBase = window.LIVE_CONFIG?.backendApiBase || window.LiveDataVersion?.config?.backendApiBase || "";
-    if (!backendApiBase) return bootData;
-    if (isRecentNavDate(bootData?.latestDate)) return bootData;
+    if (isRecentNavDate(navDateOf(bootData))) return bootData;
 
     try {
       const timeout = new Promise((resolve) => window.setTimeout(() => resolve(null), 4500));
@@ -124,6 +137,7 @@
     if (refreshInFlight) return refreshInFlight;
     refreshInFlight = dataProvider.refreshAppData({ backupData, forceLive: true }).then((liveData) => {
       if (!liveData) return;
+      if (!shouldReplaceDataset(window.FUND_APP_DATA, liveData)) return;
       window.FUND_APP_DATA = liveData;
       window.dispatchEvent(new CustomEvent("live-data:updated", { detail: { data: liveData, reason } }));
     }).catch((error) => {
@@ -134,11 +148,11 @@
     return refreshInFlight;
   };
 
-  if (!isRecentNavDate(bootData?.latestDate)) {
+  if (!isRecentNavDate(navDateOf(bootData))) {
     window.setTimeout(async () => {
       try {
         const preloaded = await preloadLiveIfNeeded(dataProvider, backupData, bootData);
-        if (preloaded && preloaded !== window.FUND_APP_DATA) {
+        if (preloaded && preloaded !== window.FUND_APP_DATA && shouldReplaceDataset(window.FUND_APP_DATA, preloaded)) {
           window.FUND_APP_DATA = preloaded;
           window.dispatchEvent(new CustomEvent("live-data:updated", { detail: { data: preloaded, reason: "startup-preload" } }));
         }
@@ -160,11 +174,11 @@
 
   const handleVisibilityRefresh = () => {
     if (document.visibilityState !== "visible") return;
-    if (isRecentNavDate(window.FUND_APP_DATA?.latestDate)) return;
+    if (isRecentNavDate(navDateOf(window.FUND_APP_DATA))) return;
     window.setTimeout(() => startLiveRefresh("visibility"), 40);
   };
 
-  if (!isRecentNavDate(initialData?.latestDate)) {
+  if (!isRecentNavDate(navDateOf(initialData))) {
     window.setTimeout(() => startLiveRefresh("startup-stale"), 180);
   } else if ("requestIdleCallback" in window) {
     window.requestIdleCallback(() => startLiveRefresh("startup-idle"), { timeout: 900 });

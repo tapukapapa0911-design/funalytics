@@ -72,7 +72,7 @@ window.LiveDataVersion.dataMapper = (() => {
         isinGrowth: liveMatch.isinGrowth,
         targetId: fund.id,
         latestNav: liveMatch.nav,
-        latestDate: liveMatch.date
+        liveNavDate: liveMatch.date
       });
     }
 
@@ -85,11 +85,11 @@ window.LiveDataVersion.dataMapper = (() => {
         schemeCode: liveMatch.schemeCode,
         liveSchemeName: liveMatch.schemeName,
         latestNav: liveMatch.latestNav,
-        latestDate: liveMatch.latestDate || fund.latestDate
+        liveNavDate: liveMatch.liveNavDate || fund.liveNavDate || fund.latestNavDate || null
       };
     });
 
-    next.latestDate = next.funds.map((fund) => fund.latestDate).filter(Boolean).sort().at(-1) || next.latestDate;
+    next.liveNavDate = next.funds.map((fund) => fund.liveNavDate).filter(Boolean).sort().at(-1) || next.liveNavDate || null;
     return { data: next, mappedFunds };
   };
 
