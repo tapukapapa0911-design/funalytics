@@ -1,7 +1,7 @@
 {
-  "name": "Funalytics Live Data Old Theme",
-  "short_name": "Funalytics Old",
-  "description": "Mutual Fund Analytics Dashboard - Old Theme",
+  "name": "Funalytics",
+  "short_name": "Funalytics",
+  "description": "Mutual Fund Analytics Dashboard",
   "start_url": "./index.html?v=2",
   "scope": "./",
   "display": "standalone",
