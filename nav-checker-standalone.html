@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Funalytics NAV Checker Standalone</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #081018;
+        --panel: #111a2e;
+        --muted: #8ea0c3;
+        --text: #f4f7ff;
+        --border: rgba(255,255,255,0.08);
+        --accent: #2e66ff;
+        --good: #49d79d;
+        --warn: #ffd166;
+        --bad: #ff6b6b;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 18px;
+        font-family: Inter, system-ui, sans-serif;
+        background: linear-gradient(180deg, var(--bg), #121931 100%);
+        color: var(--text);
+      }
+      .wrap { max-width: 980px; margin: 0 auto; display: grid; gap: 14px; }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 16px;
+      }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+      .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+      h1, h2, p { margin: 0; }
+      h1 { font-size: 24px; }
+      .muted { color: var(--muted); }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 8px 12px;
+        background: rgba(255,255,255,0.05);
+        font-size: 13px;
+      }
+      .good { color: var(--good); }
+      .warn { color: var(--warn); }
+      .bad { color: var(--bad); }
+      button, a.button {
+        border: 0;
+        border-radius: 12px;
+        padding: 10px 14px;
+        background: var(--accent);
+        color: #fff;
+        text-decoration: none;
+        font-weight: 700;
+      }
+      code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+      table { width: 100%; border-collapse: collapse; font-size: 14px; }
+      th, td {
+        text-align: left;
+        padding: 10px 8px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      input {
+        width: min(100%, 420px);
+        background: rgba(255,255,255,0.05);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 10px 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="card">
+        <h1>Funalytics NAV Checker</h1>
+        <p class="muted" style="margin-top:8px;">Use this on your phone after deployment. It checks the Render backend directly, so you can confirm whether latest NAV is available even before opening the app.</p>
+      </section>
+
+      <section class="card">
+        <div class="row" style="margin-bottom:12px;">
+          <input id="backendInput" value="https://funalytics-backend.onrender.com" />
+          <button id="refreshBtn" type="button">Refresh</button>
+          <a class="button" id="openNavBtn" href="https://funalytics-backend.onrender.com/nav" target="_blank" rel="noreferrer">Open /nav</a>
+        </div>
+        <div class="row">
+          <span class="pill"><strong>Backend</strong>&nbsp;<code id="backendLabel"></code></span>
+          <span class="pill" id="statusPill">Waiting</span>
+        </div>
+      </section>
+
+      <section class="grid">
+        <article class="card">
+          <h2>Latest NAV Date</h2>
+          <p id="latestDate" style="margin-top:10px;font-size:28px;font-weight:800;">--</p>
+          <p class="muted" id="generatedAt" style="margin-top:8px;">--</p>
+        </article>
+        <article class="card">
+          <h2>Snapshot Count</h2>
+          <p id="snapshotCount" style="margin-top:10px;font-size:28px;font-weight:800;">--</p>
+          <p class="muted" id="lastFetch" style="margin-top:8px;">--</p>
+        </article>
+        <article class="card">
+          <h2>Health</h2>
+          <p id="healthStatus" style="margin-top:10px;font-size:18px;font-weight:700;">--</p>
+          <p class="muted" id="healthNote" style="margin-top:8px;">--</p>
+        </article>
+      </section>
+
+      <section class="card">
+        <h2>What To Check</h2>
+        <p class="muted" style="margin-top:8px;">
+          1. <strong>Latest NAV Date</strong> should match AMFI latest date.<br />
+          2. <strong>Snapshot Count</strong> should be non-zero.<br />
+          3. If those two are correct, backend is good. Then app sync is a frontend apply issue, not a data issue.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Sample Funds</h2>
+        <div style="margin-top:12px;overflow:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Scheme</th>
+                <th>NAV</th>
+                <th>Date</th>
+                <th>Code</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody">
+              <tr><td colspan="4" class="muted">Tap refresh</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const fmtDate = (iso) => {
+        const raw = String(iso || "").trim();
+        if (!raw) return "--";
+        const date = new Date(raw.length <= 10 ? `${raw}T00:00:00` : raw);
+        if (Number.isNaN(date.getTime())) return raw;
+        return date.toLocaleString("en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          hour: raw.length > 10 ? "2-digit" : undefined,
+          minute: raw.length > 10 ? "2-digit" : undefined
+        });
+      };
+
+      const setStatus = (text, tone = "") => {
+        const el = document.getElementById("statusPill");
+        el.textContent = text;
+        el.className = `pill ${tone}`;
+      };
+
+      const escapeHtml = (value) => String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+
+      async function fetchJson(url) {
+        const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(15000) });
+        if (!response.ok) throw new Error(`${url} -> ${response.status}`);
+        return response.json();
+      }
+
+      async function runCheck() {
+        const base = String(document.getElementById("backendInput").value || "").trim().replace(/\/+$/, "");
+        document.getElementById("backendLabel").textContent = base || "--";
+        document.getElementById("openNavBtn").href = `${base}/nav`;
+        setStatus("Checking...", "warn");
+
+        try {
+          const [nav, health] = await Promise.all([
+            fetchJson(`${base}/nav`),
+            fetchJson(`${base}/health`).catch(() => null)
+          ]);
+
+          const items = Array.isArray(nav?.items) ? nav.items : [];
+          const latestDate = String(nav?.latestDate || "").trim();
+
+          document.getElementById("latestDate").textContent = fmtDate(latestDate);
+          document.getElementById("generatedAt").textContent = `generatedAt: ${fmtDate(nav?.generatedAt || "")}`;
+          document.getElementById("snapshotCount").textContent = String(nav?.count || items.length || 0);
+          document.getElementById("lastFetch").textContent = `lastFetchTimestamp: ${fmtDate(nav?.lastFetchTimestamp || "")}`;
+          document.getElementById("healthStatus").textContent = health?.status || "unknown";
+          document.getElementById("healthNote").textContent = latestDate
+            ? "Backend is serving a real NAV snapshot."
+            : "No latestDate found in /nav.";
+
+          const rows = items
+            .slice(0, 120)
+            .map((item) => `
+              <tr>
+                <td>${escapeHtml(item.schemeName)}</td>
+                <td>${Number(item.nav || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
+                <td>${escapeHtml(String(item.date || "").slice(0, 10))}</td>
+                <td>${escapeHtml(item.schemeCode)}</td>
+              </tr>
+            `)
+            .join("");
+
+          document.getElementById("tableBody").innerHTML = rows || '<tr><td colspan="4" class="muted">No rows in snapshot</td></tr>';
+          setStatus(latestDate && items.length ? "Backend healthy" : "Snapshot incomplete", latestDate && items.length ? "good" : "warn");
+        } catch (error) {
+          document.getElementById("latestDate").textContent = "--";
+          document.getElementById("generatedAt").textContent = "--";
+          document.getElementById("snapshotCount").textContent = "--";
+          document.getElementById("lastFetch").textContent = "--";
+          document.getElementById("healthStatus").textContent = "unreachable";
+          document.getElementById("healthNote").textContent = error.message;
+          document.getElementById("tableBody").innerHTML = `<tr><td colspan="4" class="muted">${escapeHtml(error.message)}</td></tr>`;
+          setStatus("Check failed", "bad");
+        }
+      }
+
+      document.getElementById("refreshBtn").addEventListener("click", runCheck);
+      runCheck();
+    </script>
+  </body>
+</html>

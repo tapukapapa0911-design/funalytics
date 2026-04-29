@@ -1,6 +1,6 @@
 (async () => {
   const MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000;
-  const BUILD_VERSION = "live-nav-v23";
+  const BUILD_VERSION = "live-nav-v24";
   const LAST_SYNCED_DATE_KEY = "lastSyncedDate";
   const LAST_SYNC_ATTEMPT_KEY = "lastSyncAttempt";
   const CACHED_NAV_DATE_KEY = "cachedNavDate";
@@ -118,6 +118,21 @@
     const time = isoDateValue(value);
     if (!time) return false;
     return (Date.now() - time) <= DATA_FRESHNESS_WINDOW_MS;
+  };
+
+  const hasUsableLiveNavData = (data) => {
+    if (!data) return false;
+    if (isoDateValue(navDateOf(data))) return true;
+    return Array.isArray(data?.funds) && data.funds.some((fund) => (
+      Number.isFinite(Number(fund?.latestNav)) && isoDateValue(fund?.liveNavDate)
+    ));
+  };
+
+  const needsLiveNavHydration = () => {
+    const current = window.FUND_APP_DATA;
+    if (!current) return true;
+    if (current?.liveNavStatus === "syncing") return true;
+    return !hasUsableLiveNavData(current);
   };
 
   const waitForDataProvider = async () => {
@@ -299,6 +314,8 @@
 
   const shouldSkipSyncFetch = () => {
     if (window[SYNC_IN_FLIGHT_FLAG]) return true;
+    if (needsLiveNavHydration()) return false;
+    if (!isRecentNavDate(navDateOf(window.FUND_APP_DATA))) return false;
     if (readLastSyncedDate() === localTodayIso()) return true;
     const lastAttemptAt = readLastSyncAttempt();
     if (lastAttemptAt && (Date.now() - lastAttemptAt) < NAV_SYNC_THROTTLE_MS) return true;
@@ -313,8 +330,13 @@
       if (!snapshot?.items?.length) return;
 
       const snapshotDate = String(snapshot.latestDate || "").trim();
+      const currentDate = String(navDateOf(window.FUND_APP_DATA) || "").trim();
       const cachedNavDate = readCachedNavDate();
-      if (snapshotDate && snapshotDate === cachedNavDate) {
+      const requiresApply = needsLiveNavHydration()
+        || !currentDate
+        || (snapshotDate && snapshotDate !== currentDate);
+
+      if (!requiresApply && snapshotDate && snapshotDate === cachedNavDate && hasUsableLiveNavData(window.FUND_APP_DATA)) {
         markSyncSuccessForToday();
         return;
       }
