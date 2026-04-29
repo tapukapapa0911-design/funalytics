@@ -1,4 +1,4 @@
-const SHELL_CACHE = "funalytics-shell-v25";
+const SHELL_CACHE = "funalytics-shell-v26";
 const NAV_CACHE = "funalytics-nav-v2";
 const NAV_SYNC_TAG = "funalytics-nav-sync";
 const NAV_PERIODIC_SYNC_TAG = "funalytics-nav-daily";
@@ -11,6 +11,8 @@ const APP_SHELL = [
   "./src/styles.css",
   "./src/app.js",
   "./src/bootstrap.js",
+  "./src/analytics.js",
+  "./node_modules/@vercel/analytics/dist/index.mjs",
   "./constants/schema.js",
   "./utils/cache.js",
   "./utils/validation.js",
