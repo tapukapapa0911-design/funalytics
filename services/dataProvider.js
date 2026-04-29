@@ -25,6 +25,22 @@ window.LiveDataVersion.dataProvider = (() => {
     return `${year}-${month}-${day}`;
   };
 
+  const displayNavCutoffDate = () => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 1);
+    return localIsoDate(cutoff);
+  };
+
+  const isDisplayEligibleNavDate = (value) => {
+    const iso = localIsoDate(value);
+    const cutoff = displayNavCutoffDate();
+    return Boolean(iso && (!cutoff || iso <= cutoff));
+  };
+
+  const displayEligibleRows = (rows = []) => rows.filter((row) => (
+    isDisplayEligibleNavDate(row?.date || row?.latestDate || row?.navDate)
+  ));
+
   const modeDateFromValues = (values = [], fallback = "") => {
     const counts = new Map();
     for (const value of values) {
@@ -50,8 +66,11 @@ window.LiveDataVersion.dataProvider = (() => {
   );
 
   const latestSnapshotDate = () => {
-    const rows = Array.isArray(window.LIVE_NAV_SNAPSHOT?.items) ? window.LIVE_NAV_SNAPSHOT.items : [];
-    return modeDateFromRows(rows) || localIsoDate(window.LIVE_NAV_SNAPSHOT?.latestDate);
+    const rows = displayEligibleRows(
+      Array.isArray(window.LIVE_NAV_SNAPSHOT?.items) ? window.LIVE_NAV_SNAPSHOT.items : []
+    );
+    const explicit = localIsoDate(window.LIVE_NAV_SNAPSHOT?.latestDate);
+    return modeDateFromRows(rows) || (isDisplayEligibleNavDate(explicit) ? explicit : "");
   };
 
   const fetchBackendSnapshot = async () => {
@@ -140,6 +159,7 @@ window.LiveDataVersion.dataProvider = (() => {
     const cached = cache.readJson(schema.cache.datasetKey);
     if (!(cache.isFresh(cached, DATASET_TTL_MS) && cached?.data)) return null;
     const sanitized = sanitizeDatasetDates(cached.data, backupData);
+    if (!isDisplayEligibleNavDate(navDateOf(sanitized))) return null;
     return hasUsableLiveNavData(sanitized) ? sanitized : null;
   };
 
@@ -160,12 +180,16 @@ window.LiveDataVersion.dataProvider = (() => {
   };
 
   const snapshotRowsIfRecent = () => {
-    const rows = Array.isArray(window.LIVE_NAV_SNAPSHOT?.items) ? window.LIVE_NAV_SNAPSHOT.items : [];
+    const rows = displayEligibleRows(
+      Array.isArray(window.LIVE_NAV_SNAPSHOT?.items) ? window.LIVE_NAV_SNAPSHOT.items : []
+    );
     return isSnapshotRecent() ? rows : [];
   };
 
   const snapshotRowsIfFresherThanBackup = (backupLatestDate = "") => {
-    const rows = Array.isArray(window.LIVE_NAV_SNAPSHOT?.items) ? window.LIVE_NAV_SNAPSHOT.items : [];
+    const rows = displayEligibleRows(
+      Array.isArray(window.LIVE_NAV_SNAPSHOT?.items) ? window.LIVE_NAV_SNAPSHOT.items : []
+    );
     if (!rows.length) return [];
     const snapshotDate = latestSnapshotDate() || latestDateFromRows(rows, "");
     if (dateValue(snapshotDate) > dateValue(backupLatestDate)) return rows;
@@ -186,13 +210,13 @@ window.LiveDataVersion.dataProvider = (() => {
 
   const buildSnapshotDatasetChunked = async (backupData, snapshotPayload = null) => {
     const snapshotRows = Array.isArray(snapshotPayload?.items)
-      ? snapshotPayload.items
+      ? displayEligibleRows(snapshotPayload.items)
       : snapshotRowsIfFresherThanBackup(backupData?.liveNavDate || backupData?.latestDate);
     if (!snapshotRows.length) return null;
     const { data: merged } = await mapper.mergeLatestNav(backupData, snapshotRows);
     merged.liveNavDate = modeDateFromValues((merged.funds || []).map((fund) => fund?.liveNavDate))
       || modeDateFromRows(snapshotRows)
-      || localIsoDate(snapshotPayload?.latestDate)
+      || (isDisplayEligibleNavDate(snapshotPayload?.latestDate) ? localIsoDate(snapshotPayload?.latestDate) : "")
       || latestSnapshotDate()
       || latestDateFromRows(snapshotRows, merged.liveNavDate || backupData.liveNavDate || "");
     merged.liveNavStatus = "fresh";
@@ -229,7 +253,8 @@ window.LiveDataVersion.dataProvider = (() => {
         ? snapshotOverride
         : await fetchBackendSnapshot();
       const latestNavRows = Array.isArray(snapshot?.items) ? snapshot.items : [];
-      if (!latestNavRows.length) {
+      const eligibleNavRows = displayEligibleRows(latestNavRows);
+      if (!eligibleNavRows.length) {
         const fallback = pickFresherDataset(
           pickFresherDataset(cachedData, snapshotData, safeBackup),
           sanitizeDatasetDates(safeBackup, safeBackup),
@@ -237,11 +262,11 @@ window.LiveDataVersion.dataProvider = (() => {
         );
         return persistDataset(ensureAppShape({ ...fallback, liveNavStatus: "last-available" }, safeBackup));
       }
-      const { data: merged } = await mapper.mergeLatestNav(safeBackup, latestNavRows);
+      const { data: merged } = await mapper.mergeLatestNav(safeBackup, eligibleNavRows);
       merged.liveNavDate = modeDateFromValues((merged.funds || []).map((fund) => fund?.liveNavDate))
-        || modeDateFromRows(latestNavRows)
-        || localIsoDate(snapshot?.latestDate)
-        || latestDateFromRows(latestNavRows, merged.liveNavDate || safeBackup.liveNavDate || "");
+        || modeDateFromRows(eligibleNavRows)
+        || (isDisplayEligibleNavDate(snapshot?.latestDate) ? localIsoDate(snapshot?.latestDate) : "")
+        || latestDateFromRows(eligibleNavRows, merged.liveNavDate || safeBackup.liveNavDate || "");
       merged.liveNavStatus = "fresh";
       return persistDataset(ensureAppShape(merged, safeBackup));
     } catch (error) {

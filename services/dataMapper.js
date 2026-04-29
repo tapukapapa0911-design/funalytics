@@ -43,6 +43,27 @@ window.LiveDataVersion.dataMapper = (() => {
     return modeDate || fallback || "";
   };
 
+  const localIsoDate = (date = new Date()) => {
+    const value = date instanceof Date ? date : new Date(date);
+    if (Number.isNaN(value.getTime())) return "";
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const displayNavCutoffDate = () => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 1);
+    return localIsoDate(cutoff);
+  };
+
+  const isDisplayEligibleNavDate = (value) => {
+    const date = String(value || "").slice(0, 10);
+    const cutoff = displayNavCutoffDate();
+    return /^\d{4}-\d{2}-\d{2}$/.test(date) && (!cutoff || date <= cutoff);
+  };
+
   const buildBackupLookup = (backupData) => {
     const rows = new Map();
     for (const fund of backupData?.funds || []) {
@@ -106,7 +127,7 @@ window.LiveDataVersion.dataMapper = (() => {
       const nav = Number(fund?.nav);
       const date = String(fund?.date || fund?.navDate || "").slice(0, 10);
       if (!schemeCode || !schemeName || !Number.isFinite(nav) || !date) return false;
-      return true;
+      return isDisplayEligibleNavDate(date);
     });
 
     console.log("Filtered valid funds:", validFunds.length);
