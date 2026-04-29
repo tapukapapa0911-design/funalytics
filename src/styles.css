@@ -66,6 +66,7 @@ html {
   width: 100%;
   overflow-x: hidden;
   overflow-y: auto;
+  touch-action: pan-y;
 }
 
 html:not(.app-ready) #onboarding,
@@ -83,6 +84,7 @@ body {
   overflow-x: hidden;
   overflow-y: auto;
   width: 100%;
+  touch-action: pan-y;
   scroll-behavior: smooth;
   background-color: #0b0f1a;
 background:
@@ -186,6 +188,126 @@ body.light .splash-logo-light {
   background: rgba(5, 8, 18, 0.88);
   backdrop-filter: blur(22px);
   -webkit-backdrop-filter: blur(22px);
+}
+
+.daily-sync-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 22000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(5, 8, 18, 0.76);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  opacity: 0;
+  transition: opacity 220ms var(--motion-snap);
+  pointer-events: none;
+}
+
+.daily-sync-overlay.is-visible {
+  opacity: 1;
+}
+
+.daily-sync-card {
+  width: min(100%, 420px);
+  display: grid;
+  gap: 18px;
+  padding: 28px 22px 22px;
+  border: 1px solid rgba(255,255,255,0.13);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(37, 50, 74, 0.94), rgba(26, 35, 54, 0.96)),
+    var(--surface-strong);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255,255,255,0.06);
+  transform: scale(0.985) translateY(10px);
+  transition: transform 260ms var(--motion-snap), opacity 220ms var(--motion-snap);
+  pointer-events: auto;
+}
+
+.daily-sync-overlay.is-visible .daily-sync-card {
+  transform: scale(1) translateY(0);
+}
+
+.daily-sync-label {
+  margin: 0;
+}
+
+.daily-sync-card h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.08;
+}
+
+.daily-sync-copy {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.daily-sync-progress-shell {
+  display: grid;
+  gap: 10px;
+}
+
+.daily-sync-progress-track {
+  width: 100%;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+}
+
+.daily-sync-progress-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #5eead4, #60a5fa 72%, #8b5cf6);
+  transition: width 260ms ease;
+}
+
+.daily-sync-progress-shell span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.daily-sync-fact-shell {
+  display: grid;
+  gap: 8px;
+  min-height: 78px;
+  padding: 14px 14px 12px;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.03);
+  transition: transform var(--motion-base) var(--motion-snap), border-color var(--motion-base) var(--motion-snap), box-shadow var(--motion-base) var(--motion-snap), background var(--motion-base) var(--motion-snap);
+  will-change: transform;
+  transform: translateZ(0);
+  cursor: pointer;
+}
+
+.daily-sync-fact-shell:hover,
+.daily-sync-fact-shell:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(94, 234, 212, 0.24);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.14);
+  background: rgba(255,255,255,0.05);
+  outline: none;
+}
+
+.daily-sync-fact {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.6;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.daily-sync-fact.is-visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .onboarding-panel {
@@ -435,6 +557,7 @@ body.light .parameter-row {
   display: flex;
   flex-direction: column;
   overflow: visible;
+  touch-action: pan-y;
   padding: 12px 11px calc(90px + env(safe-area-inset-bottom));
   scroll-padding-bottom: calc(90px + env(safe-area-inset-bottom));
   transition: opacity var(--motion-base) var(--motion-snap), transform var(--motion-base) var(--motion-snap);
@@ -849,6 +972,7 @@ input {
   height: auto;
   padding-bottom: calc(90px + env(safe-area-inset-bottom));
   overflow: visible;
+  touch-action: pan-y;
 }
 
 .screen::after {
@@ -959,6 +1083,7 @@ input {
 .summary-hero h2 {
   font-size: 24px;
   line-height: 1.05;
+  margin: 0;
 }
 
 .hero-date-row {
@@ -972,6 +1097,12 @@ input {
 
 .hero-date-row #heroDate {
   margin: 0;
+}
+
+.summary-hero > div:first-child {
+  display: grid;
+  gap: 8px;
+  align-content: start;
 }
 
 .sync-badge {

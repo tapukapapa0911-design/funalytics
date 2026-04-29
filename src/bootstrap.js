@@ -1,6 +1,6 @@
 (async () => {
   const MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000;
-  const BUILD_VERSION = "live-nav-v28";
+  const BUILD_VERSION = "live-nav-v32";
   const LAST_SYNCED_DATE_KEY = "lastSyncedDate";
   const LAST_SYNC_ATTEMPT_KEY = "lastSyncAttempt";
   const CACHED_NAV_DATE_KEY = "cachedNavDate";
@@ -84,6 +84,16 @@
     } catch {
       return "";
     }
+  };
+
+  const emitSyncLifecycle = (phase, detail = {}) => {
+    window.dispatchEvent(new CustomEvent("daily-sync:lifecycle", {
+      detail: {
+        phase,
+        today: localTodayIso(),
+        ...detail
+      }
+    }));
   };
 
   const markSyncAttempt = () => {
@@ -262,6 +272,16 @@
 
   const currentBackupData = () => window.EXCEL_BACKUP_DATA || backupData;
 
+  const persistSyncedDataset = (data) => {
+    if (!data?.funds?.length || !data?.summaries?.length) return;
+    try {
+      localStorage.setItem("fundpulse-live-data-v8", JSON.stringify({
+        savedAt: Date.now(),
+        data
+      }));
+    } catch {}
+  };
+
   const applySnapshotData = async (reason, snapshot = null) => {
     try {
       const nextData = await dataProvider.refreshSnapshotData({
@@ -330,20 +350,80 @@
 
   const shouldSkipSyncFetch = () => {
     if (window[SYNC_IN_FLIGHT_FLAG]) return true;
+    const completedToday = (() => {
+      try {
+        return localStorage.getItem("fundpulse-daily-sync-date") === localTodayIso()
+          && localStorage.getItem("fundpulse-daily-sync-completed") === "true";
+      } catch {
+        return false;
+      }
+    })();
+    if (completedToday && readLastSyncedDate() === localTodayIso()) return true;
     if (needsLiveNavHydration()) return false;
     if (!isRecentNavDate(navDateOf(window.FUND_APP_DATA))) return false;
-    if (readLastSyncWindow() === currentSyncWindowToken()) return true;
     const lastAttemptAt = readLastSyncAttempt();
     if (lastAttemptAt && (Date.now() - lastAttemptAt) < NAV_SYNC_THROTTLE_MS) return true;
     return false;
   };
 
+  const runManualSnapshotSync = async () => {
+    if (window[SYNC_IN_FLIGHT_FLAG]) return false;
+    window[SYNC_IN_FLIGHT_FLAG] = true;
+    emitSyncLifecycle("started", { windowLabel: currentSyncWindow(), manual: true });
+    try {
+      const snapshot = await fetchLiveSnapshot();
+      if (!snapshot?.items?.length) {
+        emitSyncLifecycle("failed", { fallback: true, manual: true });
+        return false;
+      }
+      const snapshotDate = String(snapshot.latestDate || "").trim();
+      const nextData = await dataProvider.refreshAppData({
+        backupData: currentBackupData(),
+        forceLive: true,
+        snapshotOverride: snapshot
+      });
+      persistSyncedDataset(nextData);
+      const applied = applyDatasetUpdate(nextData, "manual-snapshot-sync");
+      if (!applied) {
+        window.FUND_APP_DATA = nextData;
+        window.dispatchEvent(new CustomEvent("live-data:updated", {
+          detail: { data: nextData, reason: "manual-snapshot-sync", force: true }
+        }));
+      }
+      writeCachedNavDate(snapshotDate || navDateOf(nextData) || navDateOf(window.FUND_APP_DATA));
+      markSyncSuccess({ countForToday: true });
+      emitSyncLifecycle("completed", {
+        latestDate: snapshotDate || navDateOf(nextData) || "",
+        status: "manual-update",
+        windowLabel: currentSyncWindow(),
+        manual: true
+      });
+      return true;
+    } catch (error) {
+      console.warn("[live-data-version] manual snapshot sync failed", error);
+      emitSyncLifecycle("failed", {
+        fallback: true,
+        manual: true,
+        message: String(error?.message || "sync failed")
+      });
+      return false;
+    } finally {
+      window[SYNC_IN_FLIGHT_FLAG] = false;
+    }
+  };
+
+  window.__fundpulseManualNavSync = runManualSnapshotSync;
+
   const runBackgroundSnapshotSync = async () => {
     if (shouldSkipSyncFetch()) return;
     window[SYNC_IN_FLIGHT_FLAG] = true;
+    emitSyncLifecycle("started", { windowLabel: currentSyncWindow() });
     try {
       const snapshot = await fetchLiveSnapshot();
-      if (!snapshot?.items?.length) return;
+      if (!snapshot?.items?.length) {
+        emitSyncLifecycle("failed", { fallback: true });
+        return;
+      }
 
       const snapshotDate = String(snapshot.latestDate || "").trim();
       const currentDate = String(navDateOf(window.FUND_APP_DATA) || "").trim();
@@ -355,6 +435,11 @@
 
       if (!requiresApply && snapshotDate && snapshotDate === cachedNavDate && hasUsableLiveNavData(window.FUND_APP_DATA)) {
         markSyncSuccess({ countForToday });
+        emitSyncLifecycle("completed", {
+          latestDate: snapshotDate || navDateOf(window.FUND_APP_DATA) || "",
+          status: "already-fresh",
+          windowLabel: currentSyncWindow()
+        });
         return;
       }
 
@@ -363,10 +448,16 @@
         forceLive: true,
         snapshotOverride: snapshot
       });
+      persistSyncedDataset(nextData);
       const applied = applyDatasetUpdate(nextData, "snapshot-sync");
       if (applied) {
         writeCachedNavDate(snapshotDate || navDateOf(window.FUND_APP_DATA));
         markSyncSuccess({ countForToday });
+        emitSyncLifecycle("completed", {
+          latestDate: snapshotDate || navDateOf(window.FUND_APP_DATA) || "",
+          status: "updated",
+          windowLabel: currentSyncWindow()
+        });
         return;
       }
 
@@ -376,8 +467,17 @@
       }));
       writeCachedNavDate(snapshotDate || navDateOf(nextData));
       markSyncSuccess({ countForToday });
+      emitSyncLifecycle("completed", {
+        latestDate: snapshotDate || navDateOf(nextData) || "",
+        status: "forced-update",
+        windowLabel: currentSyncWindow()
+      });
     } catch (error) {
       console.warn("[live-data-version] background snapshot sync failed", error);
+      emitSyncLifecycle("failed", {
+        fallback: true,
+        message: String(error?.message || "sync failed")
+      });
     } finally {
       window[SYNC_IN_FLIGHT_FLAG] = false;
     }

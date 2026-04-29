@@ -47,6 +47,37 @@ let controlStateFrame = 0;
 let searchInputTimer = 0;
 const APP_DATA_STORAGE_KEY = "fundpulse-live-data-v8";
 const UI_IDLE_APPLY_MS = 900;
+const DAILY_SYNC_DATE_KEY = "fundpulse-daily-sync-date";
+const DAILY_SYNC_COMPLETED_KEY = "fundpulse-daily-sync-completed";
+const DAILY_SYNC_AT_KEY = "fundpulse-daily-synced-at";
+const DAILY_SYNC_FACT_ORDER_KEY = "fundpulse-daily-sync-fact-order";
+const DAILY_SYNC_FACT_CURSOR_KEY = "fundpulse-daily-sync-fact-cursor";
+const DAILY_SYNC_MIN_VISIBLE_MS = 1500;
+const DAILY_SYNC_FACT_INTERVAL_MS = 2800;
+const DAILY_SYNC_FACTS = [
+  "NAV updates daily based on market closing prices.",
+  "SIP helps reduce risk through rupee cost averaging.",
+  "Diversification reduces overall portfolio risk.",
+  "Equity funds often reward patience over long horizons.",
+  "Debt funds are generally steadier than pure equity funds.",
+  "Expense ratio quietly shapes long-term compounding.",
+  "Large-cap funds usually swing less than small-cap funds.",
+  "Asset allocation matters as much as fund selection.",
+  "A lower drawdown can improve staying power in volatile markets.",
+  "Sharpe ratio compares return earned for each unit of risk.",
+  "Sortino ratio focuses only on downside volatility.",
+  "A consistent fund can outperform a flashy one over time.",
+  "Rebalancing helps keep portfolio risk aligned to goals.",
+  "Index funds usually shine when costs stay low.",
+  "Rolling returns reveal consistency better than point returns.",
+  "Market dips can improve SIP averaging opportunities.",
+  "Longer holding periods can smooth short-term noise.",
+  "Fund category matters when comparing performance fairly.",
+  "Risk-adjusted returns often matter more than raw returns.",
+  "Cash flow discipline is part of investment performance too.",
+  "Portfolio overlap can quietly reduce diversification benefits.",
+  "A strong process often outlasts short-term outperformance."
+];
 
 const markUserInteraction = () => {
   window.__fundpulseLastInteractionAt = Date.now();
@@ -113,6 +144,11 @@ const onboardingEl = () => $("onboarding");
 const onboardContainerEl = () => $("onboardContainer");
 const splashScreenEl = () => $("splashScreen");
 const profileInstallButtonEl = () => $("installAppBtn");
+const dailySyncModalEl = () => $("dailySyncModal");
+const dailySyncProgressBarEl = () => $("dailySyncProgressBar");
+const dailySyncProgressTextEl = () => $("dailySyncProgressText");
+const dailySyncDescriptionEl = () => $("dailySyncDescription");
+const dailySyncFactEl = () => $("dailySyncFact");
 
 const ensureHashRoute = () => {
   if (!window.location.hash) {
@@ -125,15 +161,24 @@ const routeFromHash = () => {
   return ["dashboard", "funds", "insights", "compare", "profile"].includes(raw) ? raw : "dashboard";
 };
 
+const localTodayIso = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 function loadStoredData() {
   try {
     const raw = localStorage.getItem("fundpulse-live-data-v8");
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (!parsed || !Array.isArray(parsed.funds) || !Array.isArray(parsed.summaries)) return null;
-    const liveDate = String(parsed.liveNavDate || "").trim();
+    const dataset = parsed?.data && Array.isArray(parsed.data?.funds) ? parsed.data : parsed;
+    if (!dataset || !Array.isArray(dataset.funds) || !Array.isArray(dataset.summaries)) return null;
+    const liveDate = String(dataset.liveNavDate || "").trim();
     if (liveDate && (!/^\d{4}-\d{2}-\d{2}$/.test(liveDate) || Number(liveDate.slice(0, 4)) < 2000)) return null;
-    return parsed;
+    return dataset;
   } catch (error) {
     console.warn("Funalytics cached live data read skipped", error);
     return null;
@@ -241,20 +286,18 @@ const LAST_SYNC_WINDOW_KEY = "lastSyncWindow";
 const MORNING_SYNC_HOUR = 6;
 const SYNC_BADGE_SESSION_PREFIX = "fundpulse-sync-badge-seen:";
 
-const localTodayIso = () => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
 const currentSyncWindow = () => new Date().getHours() >= MORNING_SYNC_HOUR ? "morning" : "midnight";
 const currentSyncWindowLabel = () => currentSyncWindow() === "morning" ? "6 AM check" : "12 AM check";
 const currentSyncWindowToken = () => `${localTodayIso()}:${currentSyncWindow()}`;
 
 let heroSyncNotice = null;
 let heroSyncNoticeTimer = 0;
+let dailySyncVisible = false;
+let dailySyncStartedAt = 0;
+let dailySyncProgress = 10;
+let dailySyncProgressTimer = 0;
+let dailySyncFactTimer = 0;
+let dailySyncFactIndex = 0;
 
 const renderHeroSyncBadge = () => {
   const badge = $("heroSyncBadge");
@@ -312,6 +355,181 @@ const maybeShowWindowSyncNotice = () => {
     sessionStorage.setItem(sessionKey, "true");
   } catch {}
   setHeroSyncNotice(`Updated in ${currentSyncWindowLabel()}`, "good", 2800);
+};
+
+const hasCompletedDailySyncToday = () => {
+  try {
+    return localStorage.getItem(DAILY_SYNC_DATE_KEY) === localTodayIso()
+      && localStorage.getItem(DAILY_SYNC_COMPLETED_KEY) === "true";
+  } catch {
+    return false;
+  }
+};
+
+const updateDailySyncProgressUi = () => {
+  const bar = dailySyncProgressBarEl();
+  const label = dailySyncProgressTextEl();
+  if (bar) bar.style.width = `${Math.max(10, Math.min(100, dailySyncProgress))}%`;
+  if (label) label.textContent = `${Math.round(Math.max(10, Math.min(100, dailySyncProgress)))}%`;
+};
+
+const setDailySyncDescription = (text) => {
+  const el = dailySyncDescriptionEl();
+  if (el) el.textContent = text;
+};
+
+const readFactSequence = () => {
+  try {
+    const order = JSON.parse(localStorage.getItem(DAILY_SYNC_FACT_ORDER_KEY) || "[]");
+    const cursor = Number(localStorage.getItem(DAILY_SYNC_FACT_CURSOR_KEY) || 0);
+    if (Array.isArray(order) && order.length === DAILY_SYNC_FACTS.length && Number.isFinite(cursor)) {
+      return { order, cursor };
+    }
+  } catch {}
+  const order = DAILY_SYNC_FACTS.map((_, index) => index);
+  for (let index = order.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [order[index], order[swapIndex]] = [order[swapIndex], order[index]];
+  }
+  try {
+    localStorage.setItem(DAILY_SYNC_FACT_ORDER_KEY, JSON.stringify(order));
+    localStorage.setItem(DAILY_SYNC_FACT_CURSOR_KEY, "0");
+  } catch {}
+  return { order, cursor: 0 };
+};
+
+const nextDailySyncFact = () => {
+  const { order, cursor } = readFactSequence();
+  const safeCursor = Math.max(0, Math.min(cursor, order.length - 1));
+  const factIndex = order[safeCursor] ?? 0;
+  const nextCursor = safeCursor + 1;
+  try {
+    if (nextCursor >= order.length) {
+      localStorage.removeItem(DAILY_SYNC_FACT_ORDER_KEY);
+      localStorage.removeItem(DAILY_SYNC_FACT_CURSOR_KEY);
+    } else {
+      localStorage.setItem(DAILY_SYNC_FACT_CURSOR_KEY, String(nextCursor));
+    }
+  } catch {}
+  return DAILY_SYNC_FACTS[factIndex] || DAILY_SYNC_FACTS[0];
+};
+
+const setDailySyncFact = (text) => {
+  const el = dailySyncFactEl();
+  if (!el) return;
+  el.classList.remove("is-visible");
+  window.setTimeout(() => {
+    el.textContent = text;
+    el.classList.add("is-visible");
+  }, 90);
+};
+
+const stopDailySyncTimers = () => {
+  if (dailySyncProgressTimer) {
+    window.clearInterval(dailySyncProgressTimer);
+    dailySyncProgressTimer = 0;
+  }
+  if (dailySyncFactTimer) {
+    window.clearInterval(dailySyncFactTimer);
+    dailySyncFactTimer = 0;
+  }
+};
+
+const hideDailySyncModal = () => {
+  stopDailySyncTimers();
+  const modal = dailySyncModalEl();
+  if (!modal) return;
+  modal.classList.remove("is-visible");
+  modal.setAttribute("aria-hidden", "true");
+  window.setTimeout(() => {
+    modal.hidden = true;
+    dailySyncVisible = false;
+  }, 240);
+};
+
+const completeDailySyncModal = async ({ success = true } = {}) => {
+  const remaining = Math.max(0, DAILY_SYNC_MIN_VISIBLE_MS - (Date.now() - dailySyncStartedAt));
+  if (remaining > 0) {
+    await new Promise((resolve) => window.setTimeout(resolve, remaining));
+  }
+  dailySyncProgress = 100;
+  updateDailySyncProgressUi();
+  if (success) {
+    setDailySyncDescription("You're all up to date");
+  } else {
+    setDailySyncDescription("Sync failed, using last available data");
+  }
+  await new Promise((resolve) => window.setTimeout(resolve, success ? 1100 : 1400));
+  hideDailySyncModal();
+};
+
+const startDailySyncProgressSimulation = () => {
+  stopDailySyncTimers();
+  dailySyncProgressTimer = window.setInterval(() => {
+    if (dailySyncProgress >= 85) return;
+    const bump = dailySyncProgress < 45 ? 5 : dailySyncProgress < 70 ? 3 : 1.2;
+    dailySyncProgress = Math.min(85, dailySyncProgress + bump);
+    updateDailySyncProgressUi();
+  }, 240);
+
+  dailySyncFactTimer = window.setInterval(() => {
+    setDailySyncFact(nextDailySyncFact());
+  }, DAILY_SYNC_FACT_INTERVAL_MS);
+};
+
+const showDailySyncModal = () => {
+  if (dailySyncVisible || hasCompletedDailySyncToday()) return;
+  const modal = dailySyncModalEl();
+  if (!modal) return;
+  dailySyncVisible = true;
+  dailySyncStartedAt = Date.now();
+  dailySyncProgress = 10;
+  modal.hidden = false;
+  modal.setAttribute("aria-hidden", "false");
+  setDailySyncDescription("Gathering current NAV values for your assets.");
+  updateDailySyncProgressUi();
+  const fact = nextDailySyncFact();
+  const factEl = dailySyncFactEl();
+  if (factEl) {
+    factEl.textContent = fact;
+    factEl.classList.add("is-visible");
+  }
+  window.requestAnimationFrame(() => {
+    modal.classList.add("is-visible");
+  });
+  startDailySyncProgressSimulation();
+};
+
+const handleDailySyncLifecycle = async (event) => {
+  const phase = event.detail?.phase;
+  if (phase === "started") {
+    try {
+      localStorage.setItem(DAILY_SYNC_DATE_KEY, localTodayIso());
+      localStorage.setItem(DAILY_SYNC_COMPLETED_KEY, "false");
+    } catch {}
+    showDailySyncModal();
+    return;
+  }
+  if (phase === "completed") {
+    try {
+      localStorage.setItem(DAILY_SYNC_DATE_KEY, localTodayIso());
+      localStorage.setItem(DAILY_SYNC_COMPLETED_KEY, "true");
+      localStorage.setItem(DAILY_SYNC_AT_KEY, new Date().toISOString());
+    } catch {}
+    if (dailySyncVisible) {
+      await completeDailySyncModal({ success: true });
+    }
+    setHeroSyncNotice(`Updated in ${currentSyncWindowLabel()}`, "good", 2400);
+    return;
+  }
+  if (phase === "failed") {
+    try {
+      localStorage.setItem(DAILY_SYNC_COMPLETED_KEY, "false");
+    } catch {}
+    if (dailySyncVisible) {
+      await completeDailySyncModal({ success: false });
+    }
+  }
 };
 
 const scoreLabel = (value) => String(Math.round(value || 0));
@@ -448,7 +666,7 @@ const latestNavDateForFunds = (funds = []) => {
 
 const latestNavDateForCategory = (category = state.category) => {
   const funds = allFunds().filter((fund) => fund.category === category);
-  return latestNavDateForFunds(funds) || appData?.liveNavDate || null;
+  return latestNavDateForFunds(funds) || appData?.liveNavDate || appData?.latestDate || null;
 };
 
 const historyFor = (fund) => {
@@ -1828,8 +2046,8 @@ const renderCompare = () => {
 };
 
 const renderProfile = () => {
-  const stored = localStorage.getItem("fundpulse-live-upload-name");
-  $("uploadStatus").textContent = stored ? stored.slice(0, 22) : "Choose .xlsx";
+  const lastSyncAt = localStorage.getItem(DAILY_SYNC_AT_KEY) || "";
+  $("uploadStatus").textContent = lastSyncAt ? "Updated" : "Ready";
   const installButton = profileInstallButtonEl();
   const installValue = $("installStatus");
   const installed = isInstalledApp();
@@ -1840,6 +2058,18 @@ const renderProfile = () => {
     const available = !installed && Boolean(deferredInstallPrompt);
     installButton.hidden = !available;
     installButton.style.display = available ? "" : "none";
+  }
+};
+
+const handleManualNavSync = async () => {
+  const button = $("manualNavSyncButton");
+  if (button) button.disabled = true;
+  if ($("uploadStatus")) $("uploadStatus").textContent = "Syncing...";
+  try {
+    const result = await window.__fundpulseManualNavSync?.();
+    if ($("uploadStatus")) $("uploadStatus").textContent = result ? "Updated" : "Last available";
+  } finally {
+    if (button) button.disabled = false;
   }
 };
 
@@ -2481,7 +2711,10 @@ $("searchInput").addEventListener("input", (event) => {
     }
   });
 
-  $("excelUpload").addEventListener("change", (event) => handleUpload(event.target.files[0]));
+  $("manualNavSyncButton")?.addEventListener("click", handleManualNavSync);
+  document.querySelector(".daily-sync-fact-shell")?.addEventListener("click", () => {
+    setDailySyncFact(nextDailySyncFact());
+  });
   $("updateBanner")?.addEventListener("click", () => {
     if (serverUpdateVersion) {
       sessionStorage.setItem(UPDATE_BANNER_DISMISSED_KEY, serverUpdateVersion);
@@ -2593,6 +2826,10 @@ window.addEventListener("live-data:updated", (event) => {
     return;
   }
   window.setTimeout(applyPendingUpdate, 0);
+});
+
+window.addEventListener("daily-sync:lifecycle", (event) => {
+  handleDailySyncLifecycle(event);
 });
 
 init();
