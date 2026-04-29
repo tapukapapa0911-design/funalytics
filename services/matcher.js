@@ -89,6 +89,29 @@ window.LiveDataVersion.matcher = (() => {
     return next;
   };
 
+  const backupNavValue = (fund) => {
+    const candidates = [
+      fund?.latestNav,
+      fund?.nav,
+      fund?.backupNav,
+      fund?.currentNav,
+      fund?.navValue
+    ];
+    for (const value of candidates) {
+      const nav = Number(value);
+      if (Number.isFinite(nav) && nav > 0) return nav;
+    }
+    return 0;
+  };
+
+  const withNavPlausibility = (fund, row, score) => {
+    const backupNav = backupNavValue(fund);
+    const candidateNav = Number(row?.nav);
+    if (!backupNav || !Number.isFinite(candidateNav) || candidateNav <= 0) return score;
+    const differenceRatio = Math.abs(candidateNav - backupNav) / backupNav;
+    return differenceRatio > 0.4 ? Math.max(0, score - 0.25) : score;
+  };
+
   const scoreCandidate = (fund, row) => {
     const fundNorm = normalizedName(fund.fundName || fund.rawFundName);
     const rowNorm = normalizedName(row.schemeName);
@@ -108,7 +131,8 @@ window.LiveDataVersion.matcher = (() => {
     if (fundCategory && rowCategory && fundCategory === rowCategory) score += 0.08;
     if (rowNorm.includes(fundPrefix) || fundNorm.includes(rowPrefix)) score += 0.05;
     score = withPlanBias(fund.fundName || fund.rawFundName || "", row.schemeName, score);
-    return Math.min(score, 0.99);
+    score = withNavPlausibility(fund, row, score);
+    return Math.max(0, Math.min(score, 0.99));
   };
 
   const matchFundToScheme = (fund, schemeRows) => {
@@ -116,11 +140,11 @@ window.LiveDataVersion.matcher = (() => {
 
     if (fund.schemeCode) {
       const exact = schemeRows.find((row) => String(row.schemeCode) === String(fund.schemeCode));
-      if (exact) return { row: exact, confidence: 1, method: "scheme-code" };
+      if (exact) return { row: exact, confidence: withNavPlausibility(fund, exact, 1), method: "scheme-code" };
     }
 
     const exact = schemeRows.find((row) => normalizedName(row.schemeName) === normalizedName(fund.fundName || fund.rawFundName));
-    if (exact) return { row: exact, confidence: 1, method: "exact" };
+    if (exact) return { row: exact, confidence: withNavPlausibility(fund, exact, 1), method: "exact" };
 
     let best = null;
     for (const row of schemeRows) {
@@ -130,7 +154,9 @@ window.LiveDataVersion.matcher = (() => {
       }
     }
 
-    return best && best.confidence >= 0.7 ? best : null;
+    if (!best) return null;
+    if (best.confidence >= 0.7) return best;
+    return schemeRows.length === 1 ? best : null;
   };
 
   return {

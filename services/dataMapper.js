@@ -24,6 +24,25 @@ window.LiveDataVersion.dataMapper = (() => {
     .map((token) => token.trim())
     .filter((token) => token.length >= 4);
 
+  const modeDateFromValues = (values = [], fallback = "") => {
+    const counts = new Map();
+    for (const value of values) {
+      const date = String(value || "").slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+      counts.set(date, (counts.get(date) || 0) + 1);
+    }
+
+    let modeDate = "";
+    let modeCount = 0;
+    counts.forEach((count, date) => {
+      if (count > modeCount || (count === modeCount && date > modeDate)) {
+        modeDate = date;
+        modeCount = count;
+      }
+    });
+    return modeDate || fallback || "";
+  };
+
   const buildBackupLookup = (backupData) => {
     const rows = new Map();
     for (const fund of backupData?.funds || []) {
@@ -78,11 +97,6 @@ window.LiveDataVersion.dataMapper = (() => {
 
   const normalizeSnapshotRows = (backupData, latestRows) => {
     const snapshotRows = Array.isArray(latestRows) ? latestRows : [];
-    const snapshotDates = snapshotRows
-      .map((row) => String(row?.date || row?.navDate || "").slice(0, 10))
-      .filter(Boolean)
-      .sort();
-    const snapshotLatestDate = snapshotDates.at(-1) || "";
 
     console.log("Snapshot funds:", snapshotRows.length);
 
@@ -92,7 +106,6 @@ window.LiveDataVersion.dataMapper = (() => {
       const nav = Number(fund?.nav);
       const date = String(fund?.date || fund?.navDate || "").slice(0, 10);
       if (!schemeCode || !schemeName || !Number.isFinite(nav) || !date) return false;
-      if (snapshotLatestDate && date !== snapshotLatestDate) return false;
       return true;
     });
 
@@ -210,7 +223,10 @@ window.LiveDataVersion.dataMapper = (() => {
       };
     });
 
-    next.liveNavDate = next.funds.map((fund) => fund.liveNavDate).filter(Boolean).sort().at(-1) || next.liveNavDate || null;
+    next.liveNavDate = modeDateFromValues(
+      next.funds.map((fund) => fund.liveNavDate),
+      next.liveNavDate || null
+    ) || null;
     return { data: next, mappedFunds };
   };
 
@@ -314,7 +330,10 @@ window.LiveDataVersion.dataMapper = (() => {
     }
 
     next.funds = nextFunds;
-    next.liveNavDate = next.funds.map((fund) => fund.liveNavDate).filter(Boolean).sort().at(-1) || next.liveNavDate || null;
+    next.liveNavDate = modeDateFromValues(
+      next.funds.map((fund) => fund.liveNavDate),
+      next.liveNavDate || null
+    ) || null;
     return { data: next, mappedFunds };
   };
 
