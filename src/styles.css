@@ -190,6 +190,14 @@ body.light .splash-logo-light {
   -webkit-backdrop-filter: blur(22px);
 }
 
+.splash-screen[hidden],
+.onboarding-overlay[hidden],
+.daily-sync-overlay[hidden],
+.global-modal[hidden] {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 .daily-sync-overlay {
   position: fixed;
   inset: 0;
@@ -226,11 +234,12 @@ body.light .splash-logo-light {
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255,255,255,0.06);
   transform: scale(0.985) translateY(10px);
   transition: transform 260ms var(--motion-snap), opacity 220ms var(--motion-snap);
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .daily-sync-overlay.is-visible .daily-sync-card {
   transform: scale(1) translateY(0);
+  pointer-events: auto;
 }
 
 .daily-sync-label {
@@ -3566,7 +3575,8 @@ body.light .bottom-nav {
 @media (min-width: 768px) {
   body {
     padding: 28px;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .phone-shell {
@@ -3577,13 +3587,15 @@ body.light .bottom-nav {
     }
   
   .app-frame {
-      height: calc(100dvh - 56px);
+      min-height: calc(100dvh - 56px);
+      height: auto;
       border-radius: 0;
     }
 
   .app {
     position: relative;
-    height: 100%;
+    min-height: calc(100dvh - 56px);
+    height: auto;
       padding: 24px 12px 116px;
     }
 

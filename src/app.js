@@ -464,6 +464,7 @@ const hideDailySyncModal = () => {
   window.setTimeout(() => {
     modal.hidden = true;
     dailySyncVisible = false;
+    releaseInteractionLocks();
   }, 240);
 };
 
@@ -549,6 +550,27 @@ const handleDailySyncLifecycle = async (event) => {
     if (dailySyncVisible) {
       await completeDailySyncModal({ success: false });
     }
+  }
+};
+
+const releaseInteractionLocks = () => {
+  const global = modalRoot();
+  const globalModalOpen = Boolean(global && !global.hidden && global.classList.contains("open"));
+  if (!globalModalOpen) {
+    document.body.classList.remove("modal-open");
+  }
+
+  const daily = dailySyncModalEl();
+  if (daily && !dailySyncVisible && !daily.classList.contains("is-visible")) {
+    daily.hidden = true;
+    daily.setAttribute("aria-hidden", "true");
+  }
+
+  const onboarding = onboardingEl();
+  if (onboarding && typeof hasSeenOnboarding === "function" && hasSeenOnboarding()) {
+    onboarding.hidden = true;
+    onboarding.style.display = "none";
+    onboarding.setAttribute("aria-hidden", "true");
   }
 };
 
@@ -2111,6 +2133,7 @@ const markOnboardingDone = () => {
 };
 
 const showMainApp = () => {
+  releaseInteractionLocks();
   $("skeleton")?.classList.add("hide");
   $("app")?.classList.remove("is-loading");
 };
