@@ -226,19 +226,20 @@ const safeIsoDate = (value) => {
 
 const formatDateValue = (iso) => {
   const safeIso = safeIsoDate(iso);
-  if (!safeIso) return "Latest NAV syncing";
+  if (!safeIso) return "Latest NAV syncing, please wait";
   const [year, month, day] = safeIso.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
-  if (Number.isNaN(date.getTime())) return "Latest NAV syncing";
+  if (Number.isNaN(date.getTime())) return "Latest NAV syncing, please wait";
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 };
 
 const navDateSuffix = () => appData?.liveNavStatus === "last-available" ? " (last available)" : "";
-const formatDate = (iso) => iso ? `Data as of ${formatDateValue(iso)}${navDateSuffix()}` : "Latest NAV syncing";
+const formatDate = (iso) => iso ? `Data as of ${formatDateValue(iso)}${navDateSuffix()}` : "Latest NAV syncing, please wait";
 const hasLiveNav = (fund) => Number.isFinite(Number(fund?.latestNav)) && Boolean(String(fund?.liveNavDate || "").trim());
 const LAST_SYNC_ATTEMPT_KEY = "lastSyncAttempt";
 const LAST_SYNC_WINDOW_KEY = "lastSyncWindow";
 const MORNING_SYNC_HOUR = 6;
+const SYNC_BADGE_SESSION_PREFIX = "fundpulse-sync-badge-seen:";
 
 const localTodayIso = () => {
   const now = new Date();
@@ -252,40 +253,65 @@ const currentSyncWindow = () => new Date().getHours() >= MORNING_SYNC_HOUR ? "mo
 const currentSyncWindowLabel = () => currentSyncWindow() === "morning" ? "6 AM check" : "12 AM check";
 const currentSyncWindowToken = () => `${localTodayIso()}:${currentSyncWindow()}`;
 
-const updateLiveSyncBadge = () => {
+let heroSyncNotice = null;
+let heroSyncNoticeTimer = 0;
+
+const renderHeroSyncBadge = () => {
   const badge = $("heroSyncBadge");
   if (!badge) return;
+  if (!heroSyncNotice?.text) {
+    badge.hidden = true;
+    badge.classList.remove("is-visible", "is-fading");
+    badge.textContent = "";
+    return;
+  }
+  badge.hidden = false;
+  badge.textContent = heroSyncNotice.text;
+  badge.dataset.tone = heroSyncNotice.tone || "good";
+  badge.classList.remove("is-fading");
+  badge.classList.add("is-visible");
+};
 
+const clearHeroSyncNotice = () => {
+  if (heroSyncNoticeTimer) {
+    window.clearTimeout(heroSyncNoticeTimer);
+    heroSyncNoticeTimer = 0;
+  }
+  heroSyncNotice = null;
+  renderHeroSyncBadge();
+};
+
+const setHeroSyncNotice = (text, tone = "good", duration = 3400) => {
+  const badge = $("heroSyncBadge");
+  heroSyncNotice = { text, tone };
+  renderHeroSyncBadge();
+  if (!badge) return;
+  if (heroSyncNoticeTimer) {
+    window.clearTimeout(heroSyncNoticeTimer);
+  }
+  heroSyncNoticeTimer = window.setTimeout(() => {
+    badge.classList.add("is-fading");
+    window.setTimeout(() => {
+      clearHeroSyncNotice();
+    }, 260);
+  }, duration);
+};
+
+const maybeShowWindowSyncNotice = () => {
+  const liveDate = safeIsoDate(appData?.liveNavDate);
+  if (!liveDate || appData?.liveNavStatus === "syncing") return;
   let lastWindow = "";
-  let lastAttempt = 0;
   try {
     lastWindow = String(localStorage.getItem(LAST_SYNC_WINDOW_KEY) || "").trim();
-    lastAttempt = Number(localStorage.getItem(LAST_SYNC_ATTEMPT_KEY) || 0);
   } catch {}
-
-  const liveDate = safeIsoDate(appData?.liveNavDate);
-  const syncing = appData?.liveNavStatus === "syncing" || !liveDate;
-  const syncedThisWindow = lastWindow === currentSyncWindowToken();
-
-  let label = "Sync pending";
-  let tone = "warn";
-
-  if (syncing) {
-    label = "Syncing live NAV";
-    tone = "warn";
-  } else if (syncedThisWindow) {
-    label = `Updated in ${currentSyncWindowLabel()}`;
-    tone = "good";
-  } else if (lastAttempt > 0) {
-    label = `Checked, waiting for ${currentSyncWindowLabel()}`;
-    tone = "neutral";
-  }
-
-  badge.textContent = label;
-  badge.dataset.tone = tone;
-  badge.title = syncedThisWindow
-    ? `This device completed the ${currentSyncWindowLabel()} sync window`
-    : "This badge shows whether this device has completed the current sync window";
+  const currentToken = currentSyncWindowToken();
+  if (lastWindow !== currentToken) return;
+  const sessionKey = `${SYNC_BADGE_SESSION_PREFIX}${currentToken}`;
+  try {
+    if (sessionStorage.getItem(sessionKey) === "true") return;
+    sessionStorage.setItem(sessionKey, "true");
+  } catch {}
+  setHeroSyncNotice(`Updated in ${currentSyncWindowLabel()}`, "good", 2800);
 };
 
 const scoreLabel = (value) => String(Math.round(value || 0));
@@ -1319,7 +1345,7 @@ const renderDashboard = () => {
 
   $("heroCategory").textContent = state.category;
   $("heroDate").textContent = formatDate(latestNavDateForCategory(state.category));
-  updateLiveSyncBadge();
+  renderHeroSyncBadge();
   const heroScoreValue = scoreOf(fund);
   $("heroScore").textContent = scoreLabel(heroScoreValue);
   $("heroScoreBadge")?.setAttribute("data-score-tone", scoreTone(heroScoreValue));
@@ -2547,9 +2573,16 @@ window.addEventListener("live-data:updated", (event) => {
     if (!forceLiveUpdate && currentDate && nextDate && currentDate === nextDate) return;
 
     appData = nextData;
+    document.body.classList.add("live-sync-refresh");
     persistLiveDataWhenIdle(nextData);
     syncStateToData();
     renderCurrentView();
+    if (safeIsoDate(nextData?.liveNavDate)) {
+      setHeroSyncNotice(`Updated in ${currentSyncWindowLabel()}`, "good", 3200);
+    }
+    window.setTimeout(() => {
+      document.body.classList.remove("live-sync-refresh");
+    }, 900);
     if ($("uploadStatus")) {
       $("uploadStatus").textContent = "Live synced";
     }
@@ -2563,5 +2596,6 @@ window.addEventListener("live-data:updated", (event) => {
 });
 
 init();
+maybeShowWindowSyncNotice();
 registerServiceWorkerWhenIdle();
 scheduleUpdateChecks();

@@ -935,7 +935,6 @@ input {
     linear-gradient(135deg, rgba(94, 234, 212, 0.22), rgba(139, 92, 246, 0.16)),
     var(--surface);
   transform: translateZ(0);
-  animation: heroFloat 4.8s ease-in-out infinite;
   isolation: isolate;
 }
 
@@ -962,19 +961,38 @@ input {
   line-height: 1.05;
 }
 
+.hero-date-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .sync-badge {
   display: inline-flex;
   align-items: center;
-  min-height: 28px;
-  margin-top: 10px;
-  padding: 6px 10px;
+  min-height: 24px;
+  padding: 4px 8px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.04);
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   contain: content;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.sync-badge.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.sync-badge.is-fading {
+  opacity: 0;
+  transform: translateY(-2px);
 }
 
 .sync-badge[data-tone="good"] {
@@ -1035,6 +1053,19 @@ input {
   font-size: 10px;
   font-weight: 800;
   line-height: 1.1;
+}
+
+body.live-sync-refresh .screen.active > * {
+  animation: none !important;
+}
+
+body.live-sync-refresh .summary-hero,
+body.live-sync-refresh .chart-panel,
+body.live-sync-refresh .insight-card,
+body.live-sync-refresh .fund-card,
+body.live-sync-refresh .metric-card,
+body.live-sync-refresh .hero-score {
+  transition: none !important;
 }
 
 .hero-score-helper {
