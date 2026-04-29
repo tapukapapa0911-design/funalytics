@@ -2,10 +2,10 @@
   color-scheme: dark;
   --fade-color: rgba(11,15,26,0.9);
   --fade-solid: #0b0f1a;
-  --motion-snap: cubic-bezier(0.22, 1, 0.36, 1);
-  --motion-fast: 115ms;
-  --motion-base: 145ms;
-  --motion-slow: 170ms;
+  --motion-snap: cubic-bezier(0.2, 0.9, 0.22, 1);
+  --motion-fast: 90ms;
+  --motion-base: 125ms;
+  --motion-slow: 155ms;
   --nav-base-height: 60px;
   --nav-safe-bottom: env(safe-area-inset-bottom, 0px);
   --nav-float-gap: 14px;
@@ -4417,4 +4417,158 @@ body.light .return-pill:hover {
 .nav-box--empty strong {
   color: var(--muted);
   font-weight: 700;
+}
+
+/* Motion tuning layer: faster, lighter transitions without changing app logic. */
+.screen.active {
+  animation-duration: 190ms;
+  animation-timing-function: var(--motion-snap);
+}
+
+.screen.active > * {
+  animation-duration: 220ms;
+  animation-timing-function: var(--motion-snap);
+}
+
+.screen.active > *:nth-child(2) { animation-delay: 24ms; }
+.screen.active > *:nth-child(3) { animation-delay: 48ms; }
+.screen.active > *:nth-child(4) { animation-delay: 72ms; }
+.screen.active > *:nth-child(5) { animation-delay: 96ms; }
+
+.app.is-loaded {
+  animation-duration: 240ms;
+  animation-timing-function: var(--motion-snap);
+}
+
+.splash-screen {
+  transition-duration: 220ms;
+}
+
+.splash-logo-shell {
+  animation-duration: 220ms;
+}
+
+.daily-sync-overlay {
+  transition-duration: 170ms;
+}
+
+.daily-sync-card,
+.global-modal__card,
+.global-modal__card[data-modal-kind="picker"] {
+  transition-duration: 190ms;
+}
+
+.daily-sync-progress-track i {
+  transition-duration: 180ms;
+  transition-timing-function: var(--motion-snap);
+}
+
+.daily-sync-fact,
+.sync-badge {
+  transition-duration: 160ms;
+  transition-timing-function: var(--motion-snap);
+}
+
+.global-modal,
+.global-modal__backdrop {
+  transition-duration: 190ms;
+}
+
+.onboarding-panel {
+  transition-duration: 210ms;
+  transition-timing-function: var(--motion-snap);
+}
+
+.onboarding-steps {
+  transition-duration: 230ms;
+  transition-timing-function: var(--motion-snap);
+}
+
+.fund-radar {
+  animation-duration: 380ms;
+}
+
+.fund-radar__axis {
+  animation-duration: 300ms;
+}
+
+.fund-radar__area {
+  animation-duration: 390ms, 620ms;
+  animation-delay: 50ms, 480ms;
+}
+
+.fund-radar__node {
+  animation-duration: 260ms;
+}
+
+.fund-radar__label {
+  animation-duration: 240ms;
+}
+
+.fund-dna-fill {
+  animation-duration: 360ms;
+  animation-delay: min(var(--dna-delay, 100ms), 100ms);
+}
+
+.parameter-track i {
+  animation-duration: 360ms;
+}
+
+.fund-card,
+.metric-card,
+.compare-card,
+.insight-card,
+.chart-panel,
+.summary-hero,
+.profile-card,
+.settings-list,
+.detail-sheet,
+.nav-box,
+.return-pill,
+.mini-stat,
+.story-progress,
+.compare-metric-row,
+.metric-box,
+.daily-sync-fact-shell {
+  transition-duration: var(--motion-base) !important;
+  transition-timing-function: var(--motion-snap) !important;
+}
+
+.bottom-nav button {
+  transition-duration: var(--motion-base);
+  transition-timing-function: var(--motion-snap);
+}
+
+.bottom-nav__indicator,
+.segmented::before,
+.time-filter::before,
+.quick-filter-row::before,
+.chip-row::before {
+  transition-duration: 150ms !important;
+  transition-timing-function: var(--motion-snap) !important;
+}
+
+@media (hover: hover) {
+  .fund-card:hover,
+  .metric-card:hover,
+  .compare-card:hover,
+  .insight-card:hover,
+  .chart-panel:hover {
+    transform: translateY(-2px) scale(1.002);
+  }
+
+  .metric-box:hover {
+    transform: translateY(-1px) scale(1.01);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+  }
 }
