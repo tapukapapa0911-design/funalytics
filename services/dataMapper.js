@@ -4,6 +4,7 @@ window.LiveDataVersion.dataMapper = (() => {
   const { clone, ensureAppShape } = window.LiveDataVersion.validation;
   const { buildParameterBreakdown, scoreFromBreakdown, trendFromHistory, summarizeCategory, stdev } = window.LiveDataVersion.calculations;
   const schema = window.LiveDataVersion.schema;
+  const matcher = window.LiveDataVersion.matcher;
 
   const canon = (value) => String(value || "")
     .toLowerCase()
@@ -17,6 +18,11 @@ window.LiveDataVersion.dataMapper = (() => {
     const noSpaces = compact.replace(/\s+/g, "");
     return [...new Set([base, compact, noSpaces].filter(Boolean))];
   };
+
+  const tokenKeys = (value) => nameKeys(value)
+    .flatMap((key) => key.split(" "))
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 4);
 
   const buildBackupLookup = (backupData) => {
     const rows = new Map();
@@ -32,37 +38,153 @@ window.LiveDataVersion.dataMapper = (() => {
     return rows;
   };
 
+  const classifyPlan = (row) => {
+    const text = String(row?.schemeName || "").toLowerCase();
+    return {
+      isDirect: /\bdirect\b/.test(text),
+      isRegular: /\bregular\b/.test(text),
+      isGrowth: /\bgrowth\b|\(g\)/.test(text),
+      isIncome: /\bidcw\b|\bdividend\b|\bpayout\b|\bbonus\b/.test(text)
+    };
+  };
+
+  const preferRegularRows = (rows) => {
+    if (!Array.isArray(rows) || !rows.length) return [];
+    const buckets = [
+      rows.filter((row) => {
+        const plan = classifyPlan(row);
+        return !plan.isDirect && plan.isGrowth && !plan.isIncome;
+      }),
+      rows.filter((row) => {
+        const plan = classifyPlan(row);
+        return plan.isRegular && plan.isGrowth && !plan.isIncome;
+      }),
+      rows.filter((row) => {
+        const plan = classifyPlan(row);
+        return !plan.isDirect && !plan.isIncome;
+      }),
+      rows.filter((row) => {
+        const plan = classifyPlan(row);
+        return plan.isGrowth && !plan.isIncome;
+      }),
+      rows.filter((row) => {
+        const plan = classifyPlan(row);
+        return !plan.isIncome;
+      }),
+      rows
+    ];
+    return buckets.find((bucket) => bucket.length) || rows;
+  };
+
+  const normalizeSnapshotRows = (backupData, latestRows) => {
+    const snapshotRows = Array.isArray(latestRows) ? latestRows : [];
+    const snapshotDates = snapshotRows
+      .map((row) => String(row?.date || row?.navDate || "").slice(0, 10))
+      .filter(Boolean)
+      .sort();
+    const snapshotLatestDate = snapshotDates.at(-1) || "";
+
+    console.log("Snapshot funds:", snapshotRows.length);
+
+    const validFunds = snapshotRows.filter((fund) => {
+      const schemeCode = String(fund?.schemeCode || "").trim();
+      const schemeName = String(fund?.schemeName || "").trim();
+      const nav = Number(fund?.nav);
+      const date = String(fund?.date || fund?.navDate || "").slice(0, 10);
+      if (!schemeCode || !schemeName || !Number.isFinite(nav) || !date) return false;
+      if (snapshotLatestDate && date !== snapshotLatestDate) return false;
+      return true;
+    });
+
+    console.log("Filtered valid funds:", validFunds.length);
+
+    const growthFunds = preferRegularRows(validFunds).length === validFunds.length
+      ? validFunds.filter((fund) => {
+          const plan = classifyPlan(fund);
+          return !plan.isDirect && plan.isGrowth && !plan.isIncome;
+        })
+      : validFunds.filter((fund) => {
+          const plan = classifyPlan(fund);
+          return !plan.isDirect && plan.isGrowth && !plan.isIncome;
+        });
+
+    console.log("Growth funds:", growthFunds.length);
+
+    return growthFunds.map((fund) => ({
+      schemeName: String(fund.schemeName || "").trim(),
+      nav: Number(fund.nav),
+      date: String(fund.date || fund.navDate || "").slice(0, 10),
+      schemeCode: String(fund.schemeCode || "").trim(),
+      isinGrowth: String(fund.isinGrowth || fund.isin || "").trim(),
+      targetId: String(fund.targetId || "").trim(),
+      source: String(fund.source || "render-snapshot")
+    }));
+  };
+
+  const yieldToBrowser = () => new Promise((resolve) => {
+    if ("requestAnimationFrame" in window) {
+      window.requestAnimationFrame(() => window.setTimeout(resolve, 0));
+      return;
+    }
+    window.setTimeout(resolve, 0);
+  });
+
   const mergeLatestNav = (backupData, latestRows) => {
     const next = clone(backupData);
     const backupLookup = buildBackupLookup(backupData);
+    const normalizedRows = normalizeSnapshotRows(backupData, latestRows);
     const mappedFunds = [];
     const latestByTargetId = new Map();
     const latestBySchemeCode = new Map();
     const latestByNameKey = new Map();
+    const latestByToken = new Map();
 
-    for (const row of latestRows) {
+    const pushUnique = (bucket, row) => {
+      if (!bucket || !row) return;
+      if (!bucket.some((entry) => String(entry?.schemeCode || "") === String(row?.schemeCode || ""))) {
+        bucket.push(row);
+      }
+    };
+
+    for (const row of normalizedRows) {
       if (row?.targetId) {
-        latestByTargetId.set(row.targetId, row);
+        if (!latestByTargetId.has(row.targetId)) latestByTargetId.set(row.targetId, []);
+        latestByTargetId.get(row.targetId).push(row);
       }
       if (row?.schemeCode) {
         latestBySchemeCode.set(String(row.schemeCode), row);
       }
       for (const key of nameKeys(row?.schemeName)) {
-        if (key && !latestByNameKey.has(key)) latestByNameKey.set(key, row);
+        if (!key) continue;
+        if (!latestByNameKey.has(key)) latestByNameKey.set(key, []);
+        latestByNameKey.get(key).push(row);
+      }
+      for (const token of tokenKeys(row?.schemeName)) {
+        if (!latestByToken.has(token)) latestByToken.set(token, []);
+        latestByToken.get(token).push(row);
       }
     }
 
     for (const fund of backupData?.funds || []) {
-      let liveMatch = latestByTargetId.get(fund.id) || null;
+      const candidates = [];
 
-      if (!liveMatch && fund.schemeCode) {
-        liveMatch = latestBySchemeCode.get(String(fund.schemeCode)) || null;
+      (latestByTargetId.get(fund.id) || []).forEach((row) => pushUnique(candidates, row));
+
+      if (fund.schemeCode) {
+        pushUnique(candidates, latestBySchemeCode.get(String(fund.schemeCode)) || null);
       }
 
-      if (!liveMatch) {
-        liveMatch = [...nameKeys(fund.fundName), ...nameKeys(fund.rawFundName)]
-          .map((key) => latestByNameKey.get(key))
-          .find(Boolean);
+      [...nameKeys(fund.fundName), ...nameKeys(fund.rawFundName)]
+        .forEach((key) => (latestByNameKey.get(key) || []).forEach((row) => pushUnique(candidates, row)));
+
+      if (!candidates.length) {
+        [...tokenKeys(fund.fundName), ...tokenKeys(fund.rawFundName)]
+          .forEach((token) => (latestByToken.get(token) || []).forEach((row) => pushUnique(candidates, row)));
+      }
+
+      let liveMatch = null;
+      if (candidates.length && matcher?.matchFundToScheme) {
+        liveMatch = matcher.matchFundToScheme(fund, preferRegularRows(candidates))?.row || null;
       }
 
       if (!liveMatch || !Number.isFinite(Number(liveMatch.nav))) continue;
@@ -89,6 +211,109 @@ window.LiveDataVersion.dataMapper = (() => {
       };
     });
 
+    next.liveNavDate = next.funds.map((fund) => fund.liveNavDate).filter(Boolean).sort().at(-1) || next.liveNavDate || null;
+    return { data: next, mappedFunds };
+  };
+
+  const mergeLatestNavChunked = async (backupData, latestRows, options = {}) => {
+    const next = clone(backupData);
+    const normalizedRows = normalizeSnapshotRows(backupData, latestRows);
+    const mappedFunds = [];
+    const latestByTargetId = new Map();
+    const latestBySchemeCode = new Map();
+    const latestByNameKey = new Map();
+    const latestByToken = new Map();
+    const chunkSize = Math.max(12, Number(options.chunkSize) || 32);
+
+    const pushUnique = (bucket, row) => {
+      if (!bucket || !row) return;
+      if (!bucket.some((entry) => String(entry?.schemeCode || "") === String(row?.schemeCode || ""))) {
+        bucket.push(row);
+      }
+    };
+
+    for (let index = 0; index < normalizedRows.length; index += 1) {
+      const row = normalizedRows[index];
+      if (row?.targetId) {
+        if (!latestByTargetId.has(row.targetId)) latestByTargetId.set(row.targetId, []);
+        latestByTargetId.get(row.targetId).push(row);
+      }
+      if (row?.schemeCode) {
+        latestBySchemeCode.set(String(row.schemeCode), row);
+      }
+      for (const key of nameKeys(row?.schemeName)) {
+        if (!key) continue;
+        if (!latestByNameKey.has(key)) latestByNameKey.set(key, []);
+        latestByNameKey.get(key).push(row);
+      }
+      for (const token of tokenKeys(row?.schemeName)) {
+        if (!latestByToken.has(token)) latestByToken.set(token, []);
+        latestByToken.get(token).push(row);
+      }
+      if ((index + 1) % chunkSize === 0) {
+        await yieldToBrowser();
+      }
+    }
+
+    const funds = Array.isArray(backupData?.funds) ? backupData.funds : [];
+    for (let index = 0; index < funds.length; index += 1) {
+      const fund = funds[index];
+      const candidates = [];
+
+      (latestByTargetId.get(fund.id) || []).forEach((row) => pushUnique(candidates, row));
+
+      if (fund.schemeCode) {
+        pushUnique(candidates, latestBySchemeCode.get(String(fund.schemeCode)) || null);
+      }
+
+      [...nameKeys(fund.fundName), ...nameKeys(fund.rawFundName)]
+        .forEach((key) => (latestByNameKey.get(key) || []).forEach((row) => pushUnique(candidates, row)));
+
+      if (!candidates.length) {
+        [...tokenKeys(fund.fundName), ...tokenKeys(fund.rawFundName)]
+          .forEach((token) => (latestByToken.get(token) || []).forEach((row) => pushUnique(candidates, row)));
+      }
+
+      let liveMatch = null;
+      if (candidates.length && matcher?.matchFundToScheme) {
+        liveMatch = matcher.matchFundToScheme(fund, preferRegularRows(candidates))?.row || null;
+      }
+
+      if (liveMatch && Number.isFinite(Number(liveMatch.nav))) {
+        mappedFunds.push({
+          schemeCode: liveMatch.schemeCode,
+          schemeName: liveMatch.schemeName,
+          isinGrowth: liveMatch.isinGrowth,
+          targetId: fund.id,
+          latestNav: liveMatch.nav,
+          liveNavDate: liveMatch.date
+        });
+      }
+
+      if ((index + 1) % chunkSize === 0) {
+        await yieldToBrowser();
+      }
+    }
+
+    const mappedById = new Map(mappedFunds.map((entry) => [entry.targetId, entry]));
+    const nextFunds = [];
+    for (let index = 0; index < next.funds.length; index += 1) {
+      const fund = next.funds[index];
+      const liveMatch = mappedById.get(fund.id);
+      nextFunds.push(liveMatch ? {
+        ...fund,
+        schemeCode: liveMatch.schemeCode,
+        liveSchemeName: liveMatch.schemeName,
+        latestNav: liveMatch.latestNav,
+        liveNavDate: liveMatch.liveNavDate || fund.liveNavDate || fund.latestNavDate || null
+      } : fund);
+
+      if ((index + 1) % chunkSize === 0) {
+        await yieldToBrowser();
+      }
+    }
+
+    next.funds = nextFunds;
     next.liveNavDate = next.funds.map((fund) => fund.liveNavDate).filter(Boolean).sort().at(-1) || next.liveNavDate || null;
     return { data: next, mappedFunds };
   };
@@ -128,8 +353,8 @@ window.LiveDataVersion.dataMapper = (() => {
 
       // ── PE and PB ──────────────────────────────────────────────────────────────
       // These are portfolio fundamental metrics (not derivable from NAV).
-      // They are provided by fund's AMC factsheet, fetched via RapidAPI if key is
-      // configured (see dataProvider.js pePbCache), else use backup values.
+      // They are provided by fund factsheet data when configured, else use
+      // backup values.
       // The pePbData is injected into each fund object by dataProvider before
       // applyHistoryToFunds is called. Use it if available, else keep backup.
       const pe = (Number.isFinite(Number(fund.livePe)) && fund.livePe > 0)
@@ -220,5 +445,5 @@ window.LiveDataVersion.dataMapper = (() => {
     return ensureAppShape(next, data);
   };
 
-  return { mergeLatestNav, applyHistoryToFunds, buildBackupLookup };
+  return { mergeLatestNav, mergeLatestNavChunked, applyHistoryToFunds, buildBackupLookup };
 })();

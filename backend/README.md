@@ -5,11 +5,12 @@ This backend lives entirely inside `live-data-version/` and powers the live NAV 
 ## Features
 
 - Daily AMFI NAV ingestion
+- Daily snapshot regeneration for the frontend bundle
 - MongoDB bulk upserts keyed by `schemeCode`
 - Retry + logging
-- `mfapi.in` fallback if AMFI fails completely
 - REST API for the live frontend
-- Daily cron at `10:30 PM IST`
+- Daily cron at `12:00 AM IST`
+- Retries at `12:15 AM`, `12:30 AM`, `06:00 AM`, then every 15 minutes until end of day if needed
 
 ## Setup
 
@@ -24,6 +25,8 @@ This backend lives entirely inside `live-data-version/` and powers the live NAV 
 
 - `GET /health`
 - `GET /funds`
+- `GET /api/snapshot`
+- `GET /api/cron`
 - `GET /fund/:schemeCode`
 - `GET /search?q=keyword`
 - `GET /meta/last-updated`

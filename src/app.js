@@ -1,6 +1,5 @@
 ﻿let appData = loadStoredData() || window.FUND_APP_DATA;
 
-// Funalytics build refresh: 2026-04-19 evening patch
 const APP_NAME = "Funalytics";
 const APP_DESCRIPTION = "Funalytics is a smart mutual fund analytics platform that transforms Excel-based data into clear rankings, performance insights, and decision-ready dashboards.";
 
@@ -43,15 +42,67 @@ let modalHistoryArmed = false;
 let modalHistoryNavigating = false;
 let serverUpdateVersion = null;
 let updateCheckTimer = null;
-const APP_DATA_STORAGE_KEY = "fundpulse-live-data-v7";
+const deferredRenderJobs = new Map();
+let controlStateFrame = 0;
+let searchInputTimer = 0;
+const APP_DATA_STORAGE_KEY = "fundpulse-live-data-v8";
+const UI_IDLE_APPLY_MS = 900;
+
+const markUserInteraction = () => {
+  window.__fundpulseLastInteractionAt = Date.now();
+};
+
+const runWhenUiIdle = (task, delay = 180) => {
+  const attempt = () => {
+    const lastInteractionAt = Number(window.__fundpulseLastInteractionAt || 0);
+    const elapsed = Date.now() - lastInteractionAt;
+    if (lastInteractionAt && elapsed < UI_IDLE_APPLY_MS) {
+      window.setTimeout(attempt, delay);
+      return;
+    }
+    task();
+  };
+  attempt();
+};
+
+window.__fundpulseRunWhenUiIdle = runWhenUiIdle;
+window.__fundpulseMarkInteraction = markUserInteraction;
+
 const isoDateValue = (value) => {
   const raw = String(value || "").trim();
   if (!raw) return 0;
   const parsed = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T00:00:00`) : new Date(raw);
-  return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+  if (Number.isNaN(parsed.getTime()) || parsed.getUTCFullYear() < 2000) return 0;
+  return parsed.getTime();
 };
 
-const navDateOf = (data) => data?.liveNavDate || data?.latestDate || "";
+const navDateOf = (data) => data?.liveNavDate || "";
+
+const cancelDeferredRenderJob = (key) => {
+  const active = deferredRenderJobs.get(key);
+  if (!active) return;
+  if (active.type === "idle" && "cancelIdleCallback" in window) {
+    window.cancelIdleCallback(active.id);
+  } else {
+    window.clearTimeout(active.id);
+  }
+  deferredRenderJobs.delete(key);
+};
+
+const scheduleDeferredRenderJob = (key, task, timeout = 60) => {
+  cancelDeferredRenderJob(key);
+  const runner = () => {
+    deferredRenderJobs.delete(key);
+    task();
+  };
+  if ("requestIdleCallback" in window) {
+    const id = window.requestIdleCallback(runner, { timeout });
+    deferredRenderJobs.set(key, { type: "idle", id });
+    return;
+  }
+  const id = window.setTimeout(runner, 16);
+  deferredRenderJobs.set(key, { type: "timeout", id });
+};
 
 const $ = (id) => document.getElementById(id);
 const modalRoot = () => $("global-modal");
@@ -75,7 +126,18 @@ const routeFromHash = () => {
 };
 
 function loadStoredData() {
-  return null;
+  try {
+    const raw = localStorage.getItem("fundpulse-live-data-v8");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.funds) || !Array.isArray(parsed.summaries)) return null;
+    const liveDate = String(parsed.liveNavDate || "").trim();
+    if (liveDate && (!/^\d{4}-\d{2}-\d{2}$/.test(liveDate) || Number(liveDate.slice(0, 4)) < 2000)) return null;
+    return parsed;
+  } catch (error) {
+    console.warn("Funalytics cached live data read skipped", error);
+    return null;
+  }
 }
 
 function selectPreferredData(stored, injected) {
@@ -157,14 +219,23 @@ const formatPct = (value, digits = 1) => {
   return `${(value * 100).toFixed(digits)}%`;
 };
 
-const formatDateValue = (iso) => {
-  if (!iso) return "latest workbook extract";
-  const date = new Date(`${iso}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return "latest workbook extract";
-  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+const safeIsoDate = (value) => {
+  const raw = String(value || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) && Number(raw.slice(0, 4)) >= 2000 ? raw : "";
 };
 
-const formatDate = (iso) => `Data as of ${formatDateValue(iso)}`;
+const formatDateValue = (iso) => {
+  const safeIso = safeIsoDate(iso);
+  if (!safeIso) return "Latest NAV syncing";
+  const [year, month, day] = safeIso.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (Number.isNaN(date.getTime())) return "Latest NAV syncing";
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+};
+
+const navDateSuffix = () => appData?.liveNavStatus === "last-available" ? " (last available)" : "";
+const formatDate = (iso) => iso ? `Data as of ${formatDateValue(iso)}${navDateSuffix()}` : "Latest NAV syncing";
+const hasLiveNav = (fund) => Number.isFinite(Number(fund?.latestNav)) && Boolean(String(fund?.liveNavDate || "").trim());
 
 const scoreLabel = (value) => String(Math.round(value || 0));
 const scoreOf = (fund) => fund?.dashboardScore ?? 0;
@@ -291,8 +362,8 @@ const summaryForCategory = () => appData.summaries.find((item) => item.category 
 
 const latestNavDateForFunds = (funds = []) => {
   return funds
-    .filter((fund) => Number.isFinite(Number(fund?.latestNav)))
-    .map((fund) => String(fund?.liveNavDate || fund?.latestNavDate || "").trim())
+    .filter((fund) => hasLiveNav(fund))
+    .map((fund) => String(fund?.liveNavDate || "").trim())
     .filter((candidate) => candidate && isoDateValue(candidate))
     .sort((left, right) => isoDateValue(left) - isoDateValue(right))
     .at(-1) || null;
@@ -559,7 +630,7 @@ const applyOptionValue = (type, value, direction = 0) => {
   if (type === "horizon") {
     previousHorizonValue = state.horizon;
     state.horizon = value;
-    renderAll();
+    renderCurrentView();
     syncControlState();
     return;
   }
@@ -1024,7 +1095,7 @@ const openPicker = (target) => {
         if ($("searchInput")) $("searchInput").value = "";
       }
       closeGlobalModal();
-      renderAll();
+      renderCurrentView();
     });
   });
 };
@@ -1164,7 +1235,11 @@ const syncControlState = () => {
   document.querySelectorAll("[data-fund-view]").forEach((button) => {
     button.classList.toggle("active", button.dataset.fundView === state.fundView);
   });
-  requestAnimationFrame(() => {
+  if (controlStateFrame) {
+    cancelAnimationFrame(controlStateFrame);
+  }
+  controlStateFrame = requestAnimationFrame(() => {
+    controlStateFrame = 0;
     bindSegmentedPillTracking();
     updateAllSegmentedPills();
   });
@@ -1188,16 +1263,8 @@ const renderDashboard = () => {
     renderFallback("screen-dashboard", "Dashboard data unavailable", "Choose a category with valid workbook data to see the dashboard.");
     return;
   }
-  const history = historyFor(fund);
-  const signals = buildStorySignals(fund, funds);
-  const categoryAverage = categorySeries(funds);
   const categoryAvgReturn = funds.map((item) => item[state.horizon]).filter((value) => typeof value === "number");
   const avgReturn = categoryAvgReturn.length ? categoryAvgReturn.reduce((a, b) => a + b, 0) / categoryAvgReturn.length : null;
-  const outperformCount = history.filter((point) => {
-    const label = point.date ? point.date.slice(5) : point.label;
-    const cat = categoryAverage.find((item) => item.label === label);
-    return metricAt(point) !== null && cat && metricAt(point) >= cat.avg;
-  }).length;
 
   $("heroCategory").textContent = state.category;
   $("heroDate").textContent = formatDate(latestNavDateForCategory(state.category));
@@ -1209,7 +1276,7 @@ const renderDashboard = () => {
   $("categoryAverage").textContent = scoreLabel(summary.categoryAverageScore);
   $("consistency").textContent = Number.isFinite(Number(fund?.consistency)) ? `${Number(fund.consistency).toFixed(1)} vol` : "—";
   $("totalFunds").textContent = summary.totalFunds;
-  $("dashboardInsight").textContent = `${buildHeadlineInsight(fund, funds)} ${storySentence(fund, funds)} It beat the category average in ${outperformCount} of ${history.length} visible periods.`;
+  $("dashboardInsight").textContent = `${fund.fundName} is loading live category insight...`;
 
   const insightMount = $("topPerformerInsightMount");
   if (insightMount) {
@@ -1218,9 +1285,34 @@ const renderDashboard = () => {
     insightMount.setAttribute("aria-hidden", "true");
   }
 
-  renderPerformanceChart("lineChart", fund, funds);
-  $("performanceTooltip").hidden = false;
-  $("performanceTooltip").textContent = `Top fund: ${fund.fundName} | Return view: ${horizonLabel()} | Score lead: ${signals.scoreLead >= 0 ? "+" : ""}${signals.scoreLead.toFixed(1)}`;
+  const chartTarget = $("lineChart");
+  const tooltip = $("performanceTooltip");
+  if (chartTarget) {
+    chartTarget.innerHTML = `<div class="empty-chart">Loading performance chart...</div>`;
+  }
+  if (tooltip) {
+    tooltip.hidden = false;
+    tooltip.textContent = `Loading live comparison for ${fund.fundName}...`;
+  }
+
+  const categoryKey = `${state.category}|${state.horizon}|${state.period}|${fund.id}`;
+  scheduleDeferredRenderJob(`dashboard:${categoryKey}`, () => {
+    if (state.tab !== "dashboard" || state.category !== summary.category) return;
+    const history = historyFor(fund);
+    const signals = buildStorySignals(fund, funds);
+    const categoryAverage = categorySeries(funds);
+    const outperformCount = history.filter((point) => {
+      const label = point.date ? point.date.slice(5) : point.label;
+      const cat = categoryAverage.find((item) => item.label === label);
+      return metricAt(point) !== null && cat && metricAt(point) >= cat.avg;
+    }).length;
+    $("dashboardInsight").textContent = `${buildHeadlineInsight(fund, funds)} ${storySentence(fund, funds)} It beat the category average in ${outperformCount} of ${history.length} visible periods.`;
+    renderPerformanceChart("lineChart", fund, funds, categoryAverage);
+    if (tooltip) {
+      tooltip.hidden = false;
+      tooltip.textContent = `Top fund: ${fund.fundName} | Return view: ${horizonLabel()} | Score lead: ${signals.scoreLead >= 0 ? "+" : ""}${signals.scoreLead.toFixed(1)}`;
+    }
+  }, 90);
 };
 
 const categorySeries = (funds) => {
@@ -1241,14 +1333,14 @@ const categorySeries = (funds) => {
     .slice(-periodCount());
 };
 
-const renderPerformanceChart = (id, fund, funds) => {
+const renderPerformanceChart = (id, fund, funds, category = null) => {
   const target = $(id);
   if (!target || !fund) return;
   const fundHistory = chartHistoryFor(fund);
-  const category = categorySeries(funds);
-  const labels = [...new Set([...fundHistory.map((point) => point.label), ...category.map((point) => point.label)])];
+  const categoryData = Array.isArray(category) ? category : categorySeries(funds);
+  const labels = [...new Set([...fundHistory.map((point) => point.label), ...categoryData.map((point) => point.label)])];
   const selectedValues = labels.map((label) => fundHistory.find((point) => point.label === label)?.value ?? null);
-  const categoryValues = labels.map((label) => category.find((point) => point.label === label)?.avg ?? null);
+  const categoryValues = labels.map((label) => categoryData.find((point) => point.label === label)?.avg ?? null);
   renderMultiLineSvg(target, [
     { name: "Top fund", values: selectedValues, color: "#0F766E" },
     { name: "Category average", values: categoryValues, color: "#2563EB" }
@@ -1412,10 +1504,10 @@ const renderFunds = () => {
         </div>
         <div class="trend-row">
           ${trendMarkup(fund.trend)}
-          <div class="nav-box${fund.latestNav != null && Number.isFinite(Number(fund.latestNav)) ? "" : " nav-box--empty"}">
-            <small>NAV</small>
-            <strong>${fund.latestNav != null && Number.isFinite(Number(fund.latestNav)) ? `₹${Number(fund.latestNav).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}</strong>
-          </div>
+      <div class="nav-box${hasLiveNav(fund) ? "" : " nav-box--empty"}">
+        <small>NAV</small>
+        <strong>${hasLiveNav(fund) ? `₹${Number(fund.latestNav).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}</strong>
+      </div>
           <span>Score ${scoreLabel(scoreOf(fund))}</span>
         </div>
       </article>
@@ -1504,7 +1596,15 @@ const renderInsights = () => {
       <p class="story-copy">${escapeHtml(summary.topPerformer)} leads the category while the current view uses the ${datasetLabel().toLowerCase()}.</p>
     </article>
   `;
-  renderReturnBarChart("analysisChart", chartFunds, false);
+  const analysisChart = $("analysisChart");
+  if (analysisChart) {
+    analysisChart.innerHTML = `<div class="empty-chart">Loading category leadership chart...</div>`;
+  }
+  const insightKey = `${state.category}|${state.horizon}|insights`;
+  scheduleDeferredRenderJob(`insights:${insightKey}`, () => {
+    if (state.tab !== "insights" || state.category !== summary.category) return;
+    renderReturnBarChart("analysisChart", chartFunds, false);
+  }, 120);
 };
 
 const renderReturnBarChart = (id, funds, highlightSelected = true) => {
@@ -1692,7 +1792,7 @@ const loadDashboard = () => {
   ensureHashRoute();
   window.location.hash = "#dashboard";
   syncTabUi();
-  renderAll();
+  renderCurrentView();
   renderChrome();
   showMainApp();
 };
@@ -2203,10 +2303,17 @@ const bindEvents = () => {
     });
   });
 
-  $("searchInput").addEventListener("input", (event) => {
-    state.query = event.target.value;
+$("searchInput").addEventListener("input", (event) => {
+  const nextValue = event.target.value;
+  if (searchInputTimer) {
+    window.clearTimeout(searchInputTimer);
+  }
+  searchInputTimer = window.setTimeout(() => {
+    searchInputTimer = 0;
+    state.query = nextValue;
     renderFunds();
-  });
+  }, 70);
+});
 
   $("clearSearch").addEventListener("click", () => {
     state.query = "";
@@ -2262,10 +2369,16 @@ const bindEvents = () => {
   });
 
   document.addEventListener("keydown", (event) => {
+    markUserInteraction();
     if (event.key === "Escape") closeAllOverlays();
   });
 
+  ["pointerdown", "touchstart", "wheel"].forEach((eventName) => {
+    document.addEventListener(eventName, markUserInteraction, { passive: true });
+  });
+
   window.addEventListener("hashchange", () => {
+    markUserInteraction();
     const nextTab = routeFromHash();
     if (nextTab !== state.tab) {
       state.tab = nextTab;
@@ -2352,7 +2465,7 @@ const init = () => {
   setTheme(state.theme);
   bindEvents();
   updateInstallButton();
-  renderAll();
+  syncTabUi();
   playSplashAndBoot();
 };
 
@@ -2362,20 +2475,38 @@ window.resetOnboarding = () => {
   location.reload();
 };
 
+let pendingLiveUpdateData = null;
+let liveUpdateFrameScheduled = false;
+
 window.addEventListener("live-data:updated", (event) => {
-  const nextData = normalizeAppData(event.detail?.data);
-  if (!nextData?.funds || !nextData?.summaries) return;
-  appData = nextData;
-  persistLiveDataWhenIdle(nextData);
-  syncStateToData();
-  if ("requestAnimationFrame" in window) {
-    window.requestAnimationFrame(() => renderCurrentView());
-  } else {
+  pendingLiveUpdateData = event.detail?.data || null;
+  if (liveUpdateFrameScheduled) return;
+  liveUpdateFrameScheduled = true;
+
+  const applyPendingUpdate = () => {
+    liveUpdateFrameScheduled = false;
+    const nextData = normalizeAppData(pendingLiveUpdateData);
+    pendingLiveUpdateData = null;
+    if (!nextData?.funds || !nextData?.summaries) return;
+
+    const currentDate = safeIsoDate(appData?.liveNavDate);
+    const nextDate = safeIsoDate(nextData?.liveNavDate);
+    if (currentDate && nextDate && currentDate === nextDate) return;
+
+    appData = nextData;
+    persistLiveDataWhenIdle(nextData);
+    syncStateToData();
     renderCurrentView();
+    if ($("uploadStatus")) {
+      $("uploadStatus").textContent = "Live synced";
+    }
+  };
+
+  if ("requestAnimationFrame" in window) {
+    window.requestAnimationFrame(() => window.requestAnimationFrame(applyPendingUpdate));
+    return;
   }
-  if ($("uploadStatus")) {
-    $("uploadStatus").textContent = "Live synced";
-  }
+  window.setTimeout(applyPendingUpdate, 0);
 });
 
 init();

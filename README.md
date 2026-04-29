@@ -6,9 +6,7 @@ This folder is a separate replica of the Funalytics app that keeps the original 
 
 - UI shell is cloned from the current app.
 - Data bootstraps from `mockData/excel-backup.json`.
-- Live refresh attempts use verified AMFI endpoints for:
-  - latest NAV snapshot
-  - historical NAV windows
+- Live refresh attempts use the AMFI NAV feed only.
 - Live data is mapped back into the same normalized `excel-dashboard`-style shape the UI already expects.
 
 ## Architecture
@@ -18,7 +16,7 @@ This folder is a separate replica of the Funalytics app that keeps the original 
 - `utils/validation.js`: data-shape safety
 - `services/apiClients.js`: AMFI fetch clients
 - `services/matcher.js`: scheme matching helpers for resilient NAV mapping
-- `services/navResolver.js`: multi-source NAV resolution and caching
+- `services/navResolver.js`: AMFI NAV resolution and caching
 - `services/calculations.js`: workbook-equivalent scoring and return helpers
 - `services/dataMapper.js`: live data -> workbook schema mapping
 - `services/dataProvider.js`: boot, refresh, cache, fallback orchestration
@@ -64,15 +62,11 @@ location.reload();
 | Metric | Source | Frequency | Notes |
 |---|---|---|---|
 | Latest NAV | AMFI NAVAll.txt | Daily | Official, authoritative |
-| 1Y / 3Y / 5Y Returns | mfapi.in -> AMFI fallback | On refresh | Computed via CAGR from NAV history |
-| Sharpe Ratio | Computed from mfapi.in history | On refresh | 1Y window, 252 trading days, RFR=6.5% |
-| Sortino Ratio | Computed from mfapi.in history | On refresh | 1Y window, downside deviation |
-| Volatility | Computed from mfapi.in history | On refresh | Annualized std dev of daily returns |
+| 1Y / 3Y / 5Y Returns | Excel backup | Static | Workbook-derived fallback values |
+| Sharpe Ratio | Excel backup | Static | Workbook-derived fallback values |
+| Sortino Ratio | Excel backup | Static | Workbook-derived fallback values |
+| Volatility | Excel backup | Static | Workbook-derived fallback values |
 | PE Ratio | Excel backup (quarterly manual update) | Static | No free public API for portfolio P/E |
 | PB Ratio | Excel backup (quarterly manual update) | Static | No free public API for portfolio P/B |
 
-Note: PE and PB are portfolio fundamental metrics reported quarterly by AMCs.
-No free, reliable, structured API exists for this data in India as of 2026.
-The most accurate source remains manual quarterly updates from Value Research or AMC factsheets.
-To add live PE/PB: configure a RapidAPI key for `latest-mutual-fund-nav.p.rapidapi.com` and
-override in `dataMapper.js` where `const pe = fund.pe` is set.
+Note: PE and PB remain workbook-backed portfolio metrics until a separate verified source is introduced.

@@ -107,7 +107,6 @@ window.LiveDataVersion.navResolver = (() => {
   };
 
   const fetchResolvedNav = async (fund, match) => {
-    const apiKey = window.LIVE_CONFIG?.rapidApiKey || window.LiveDataVersion?.config?.rapidApiKey || "JlGT6Dt3yljuREbLYUaNQ9X4xce8AjQv";
     const cached = getCachedNav(fund.id);
     const amfiPayload = match?.row?.nav
       ? {
@@ -117,36 +116,7 @@ window.LiveDataVersion.navResolver = (() => {
         }
       : null;
 
-    const schemeCode = match?.row?.schemeCode || fund.schemeCode;
-    const isin = match?.row?.isinGrowth || "";
-
-    let mfapiPayload = null;
-    let mfdataPayload = null;
-    let isinPayload = null;
-
-    if (schemeCode) {
-      try {
-        mfapiPayload = await api.fetchMfApiLatest(schemeCode);
-      } catch (error) {
-        log("mfapi latest failed", fund.fundName, schemeCode, error?.message || error);
-      }
-
-      try {
-        mfdataPayload = await api.fetchMfDataScheme(schemeCode);
-      } catch (error) {
-        log("mfdata latest failed", fund.fundName, schemeCode, error?.message || error);
-      }
-    }
-
-    if (!mfapiPayload && !mfdataPayload && isin) {
-      try {
-        isinPayload = await api.fetchIsinNav(isin, apiKey);
-      } catch (error) {
-        log("isin nav failed", fund.fundName, isin, error?.message || error);
-      }
-    }
-
-    const resolved = chooseBetween(mfapiPayload, mfdataPayload) || mfdataPayload || isinPayload || amfiPayload || cached;
+    const resolved = amfiPayload || cached;
     if (!resolved || !Number.isFinite(Number(resolved.nav))) {
       const backupNav = Number(fund.latestNav ?? fund.nav);
       return {

@@ -1,5 +1,4 @@
-// Funalytics build refresh: 2026-04-19 evening patch
-const CACHE_NAME = "funalytics-v6.1";
+const CACHE_NAME = "funalytics-v3";
 const APP_SHELL = [
   "/",
   "/index.html",

@@ -1,4 +1,3 @@
-/* Funalytics build refresh: 2026-04-19 evening patch */
 :root {
   color-scheme: dark;
   --fade-color: rgba(11,15,26,0.9);
@@ -4058,6 +4057,23 @@ body.light .return-pill:hover {
 .return-pill,
 .mini-stat {
   will-change: transform, box-shadow, opacity;
+}
+
+.fund-card,
+.metric-card,
+.compare-card,
+.insight-card,
+.mini-list button,
+.picker-list button,
+.compare-metric-row {
+  contain: content;
+}
+
+.bottom-nav button,
+.compare-metric-row,
+.story-progress,
+.global-modal__backdrop {
+  will-change: transform, opacity;
 }
 
 .global-modal.open .global-modal__card,

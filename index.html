@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#070A12" />
-    <title>Funalytics Live Data Old Theme - Mutual Fund Analytics Dashboard</title>
+    <title>Funalytics Main App - Mutual Fund Analytics Dashboard</title>
     <link rel="manifest" href="manifest.json?v=2" />
     <link rel="apple-touch-icon" href="icons/light-logo.png" />
     <link rel="stylesheet" href="src/styles.css" />
@@ -307,7 +307,7 @@
     <script>
       window.FUND_APP_DATA = window.FUND_APP_DATA || {
         analysis: "fallback",
-        latestDate: "2026-03-31",
+        latestDate: "",
         liveNavDate: null,
         categories: ["Large Cap Fund"],
         summaries: [{
@@ -319,12 +319,12 @@
           topPerformer: "ICICI Pru Large Cap Fund (G)",
           topScore: 76,
           topTrend: "Declining",
-          latestDate: "2026-03-31"
+          latestDate: ""
         }],
         funds: [
-          { id: "fallback-1", category: "Large Cap Fund", fundName: "ICICI Pru Large Cap Fund (G)", rank: 1, dashboardScore: 76, consistency: 5.7, trend: "Declining", trendDelta: -11, flag: "Top Performers", oneYear: -0.0296, threeYear: 0.1392, fiveYear: 0.1323, history: [{date:"2025-03-31",score:77},{date:"2026-03-31",score:66}], parameterBreakdown: [] },
-          { id: "fallback-2", category: "Large Cap Fund", fundName: "Invesco India Largecap Fund (G)", rank: 2, dashboardScore: 71, consistency: 3.9, trend: "Improving", trendDelta: 4, flag: "Top Performers", oneYear: null, threeYear: null, fiveYear: null, history: [{date:"2025-03-31",score:66},{date:"2025-12-31",score:70}], parameterBreakdown: [] },
-          { id: "fallback-3", category: "Large Cap Fund", fundName: "Dsp Large Cap Fund - Regular (G)", rank: 3, dashboardScore: 70, consistency: 2.9, trend: "Declining", trendDelta: -3, flag: "Top Performers", oneYear: -0.0359, threeYear: 0.1432, fiveYear: 0.1082, history: [{date:"2025-03-31",score:74},{date:"2026-03-31",score:71}], parameterBreakdown: [] }
+          { id: "fallback-1", category: "Large Cap Fund", fundName: "ICICI Pru Large Cap Fund (G)", rank: 1, dashboardScore: 76, consistency: 5.7, trend: "Declining", trendDelta: -11, flag: "Top Performers", oneYear: -0.0296, threeYear: 0.1392, fiveYear: 0.1323, history: [{date:"",score:77},{date:"",score:66}], parameterBreakdown: [] },
+          { id: "fallback-2", category: "Large Cap Fund", fundName: "Invesco India Largecap Fund (G)", rank: 2, dashboardScore: 71, consistency: 3.9, trend: "Improving", trendDelta: 4, flag: "Top Performers", oneYear: null, threeYear: null, fiveYear: null, history: [{date:"",score:66},{date:"",score:70}], parameterBreakdown: [] },
+          { id: "fallback-3", category: "Large Cap Fund", fundName: "Dsp Large Cap Fund - Regular (G)", rank: 3, dashboardScore: 70, consistency: 2.9, trend: "Declining", trendDelta: -3, flag: "Top Performers", oneYear: -0.0359, threeYear: 0.1432, fiveYear: 0.1082, history: [{date:"",score:74},{date:"",score:71}], parameterBreakdown: [] }
         ],
         scoring: { weights: [
           { label: "1Y", weight: 0.10, direction: "higher is better" },
@@ -338,61 +338,51 @@
       };
       setTimeout(function () {
         var app = document.getElementById("app");
-        var skeleton = document.getElementById("skeleton");
         if (app && app.classList.contains("is-loading")) {
           var data = window.FUND_APP_DATA;
           var summary = data.summaries[0];
-          var funds = data.funds || [];
           var set = function (id, value) {
             var node = document.getElementById(id);
-            if (node) node.textContent = value;
+            if (node && value !== undefined && value !== null && value !== "") node.textContent = value;
           };
           set("heroCategory", summary.category);
-          var displayDate = data.liveNavDate || "";
-          set("heroDate", displayDate ? ("Data as of " + new Date(displayDate + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })) : "Latest NAV syncing");
           set("heroScore", summary.topScore);
           set("topPerformer", summary.topPerformer);
-          set("avgReturn", summary.categoryAverageReturn + "%");
-          set("categoryAverage", summary.categoryAverageScore);
-          set("consistency", summary.consistencyScore + " vol");
-          set("totalFunds", summary.totalFunds);
-          set("dashboardInsight", summary.topPerformer + " is ranked #1 in " + summary.category + " using the dashboard score methodology.");
-          var list = document.getElementById("fundList");
-          if (list) {
-            list.innerHTML = funds.map(function (fund) {
-              return "<article class='fund-card'><div class='fund-card-top'><h3 class='fund-name'>" + fund.fundName + "</h3><div class='rank-badge'>#" + fund.rank + "</div></div><div class='trend-row'><span>" + fund.trend + "</span><span>Score " + fund.dashboardScore + "</span></div></article>";
-            }).join("");
-          }
-          app.classList.remove("is-loading");
-          if (skeleton) skeleton.classList.add("hide");
         }
       }, 280);
+      setTimeout(function () {
+        var app = document.getElementById("app");
+        var skeleton = document.getElementById("skeleton");
+        if (!app || !app.classList.contains("is-loading")) return;
+        var heroDate = document.getElementById("heroDate");
+        if (heroDate && !heroDate.textContent.trim()) {
+          heroDate.textContent = "Latest NAV syncing";
+        } else if (heroDate && heroDate.textContent.trim() === "Latest data") {
+          heroDate.textContent = "Latest NAV syncing";
+        }
+        app.classList.remove("is-loading");
+        if (skeleton) skeleton.classList.add("hide");
+      }, 1200);
     </script>
     <script>
       (function () {
         var storedBase = localStorage.getItem("fundpulse-live-backend-api-base") || "";
-        var urlBase = new URLSearchParams(window.location.search).get("backendApiBase") || "";
-        var resolvedBase = urlBase || "";
-        if (!resolvedBase && storedBase) {
-          try { localStorage.removeItem("fundpulse-live-backend-api-base"); } catch (error) {}
-        }
+        var resolvedBase = storedBase.trim() || "https://funalytics-backend.onrender.com";
         window.LIVE_CONFIG = Object.assign({}, window.LIVE_CONFIG || {}, {
           backendApiBase: resolvedBase
         });
       })();
     </script>
-    <script src="mockData/excel-backup.js?v=2026-04-27-navfix6"></script>
-    <script src="mockData/live-nav-snapshot.js?v=2026-04-27-navfix6"></script>
-    <script src="constants/schema.js?v=2026-04-27-navfix6"></script>
-    <script src="utils/cache.js?v=2026-04-27-navfix6"></script>
-    <script src="utils/validation.js?v=2026-04-27-navfix6"></script>
-    <script src="services/calculations.js?v=2026-04-27-navfix6"></script>
-    <script src="services/apiClients.js?v=2026-04-27-navfix6"></script>
-    <script src="services/matcher.js?v=2026-04-27-navfix6"></script>
-    <script src="services/dataMapper.js?v=2026-04-27-navfix6"></script>
-    <script src="services/navResolver.js?v=2026-04-27-navfix6"></script>
-    <script src="services/liveNavService.js?v=2026-04-27-navfix6"></script>
-    <script src="services/dataProvider.js?v=2026-04-27-navfix6"></script>
-    <script src="src/bootstrap.js?v=2026-04-27-navfix6"></script>
+  <script defer src="mockData/excel-backup.js?v=live-nav-v21"></script>
+  <script defer src="mockData/live-nav-snapshot.js?v=live-nav-v21"></script>
+  <script defer src="constants/schema.js?v=live-nav-v21"></script>
+  <script defer src="utils/cache.js?v=live-nav-v21"></script>
+  <script defer src="utils/validation.js?v=live-nav-v21"></script>
+  <script defer src="services/calculations.js?v=live-nav-v21"></script>
+  <script defer src="services/apiClients.js?v=live-nav-v21"></script>
+  <script defer src="services/matcher.js?v=live-nav-v21"></script>
+  <script defer src="services/dataMapper.js?v=live-nav-v21"></script>
+  <script defer src="services/dataProvider.js?v=live-nav-v21"></script>
+  <script defer src="src/bootstrap.js?v=live-nav-v21"></script>
   </body>
 </html>

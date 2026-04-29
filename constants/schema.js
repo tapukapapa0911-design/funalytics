@@ -9,38 +9,20 @@ window.LiveDataVersion.schema = {
       label: "AMFI Latest NAV",
       url: "https://www.amfiindia.com/spages/NAVAll.txt",
       purpose: "Full scheme catalog: scheme codes, ISIN codes, latest NAV, latest date"
-    },
-    {
-      id: "mfapi-history",
-      label: "mfapi.in Full NAV History",
-      url: "https://api.mfapi.in/mf/",
-      purpose: "Per-scheme full NAV history. Used to compute 1Y/3Y/5Y CAGR, Sharpe, Sortino, Volatility. Free, no API key required."
-    },
-    {
-      id: "amfi-history-portal",
-      label: "AMFI NAV History Portal (legacy fallback)",
-      url: "https://portal.amfiindia.com/NavHistoryReport_Rpt_Po.aspx",
-      purpose: "Fallback history source if mfapi.in is unavailable"
-    },
-    {
-      id: "rapidapi-pe-pb",
-      label: "RapidAPI Mutual Fund India (PE/PB)",
-      url: "https://latest-mutual-fund-nav.p.rapidapi.com/fetchMutualFundDetailsByISIN",
-      purpose: "Portfolio PE and PB ratios per fund. Requires RAPIDAPI_KEY. Falls back to Excel backup if unavailable."
     }
   ],
   riskFreeRate: 0.065,
   cache: {
     bootstrapKey: "live-funalytics-bootstrap-cache",
-    latestNavKey: "live-funalytics-latest-nav-cache-v7",
-    navSchemeListKey: "live-funalytics-nav-scheme-list-v7",
-    navMatchMapKey: "live-funalytics-nav-match-map-v7",
-    navResolverKey: "live-funalytics-nav-resolver-cache-v7",
-    navFallbackKey: "live-funalytics-nav-fallback-cache-v7",
-    datasetKey: "fundpulse-live-data-v7",
-    ttlMs: 10 * 60 * 1000,
+    latestNavKey: "live-funalytics-latest-nav-cache-v8",
+    navSchemeListKey: "live-funalytics-nav-scheme-list-v8",
+    navMatchMapKey: "live-funalytics-nav-match-map-v8",
+    navResolverKey: "live-funalytics-nav-resolver-cache-v8",
+    navFallbackKey: "live-funalytics-nav-fallback-cache-v8",
+    datasetKey: "fundpulse-live-data-v8",
+    ttlMs: 15 * 60 * 1000,
     hardTtlMs: 60 * 60 * 1000,
-    navTtlMs: 10 * 60 * 1000,
+    navTtlMs: 15 * 60 * 1000,
     schemeListTtlMs: 24 * 60 * 60 * 1000
   },
   scoring: {

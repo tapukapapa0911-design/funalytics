@@ -3,7 +3,7 @@ window.LiveDataVersion = window.LiveDataVersion || {};
 window.LiveDataVersion.matcher = (() => {
   const STOP_WORDS = new Set([
     "direct", "growth", "plan", "option", "idcw", "regular", "reinvestment",
-    "payout", "dividend", "bonus", "fund", "the", "of", "and", "g"
+    "payout", "dividend", "bonus", "fund", "the", "of", "and", "g", "erstwhile"
   ]);
   const BRANDS = [
     "bank of india", "baroda bnp paribas", "canara robeco", "mahindra manulife", "motilal oswal",
@@ -22,6 +22,7 @@ window.LiveDataVersion.matcher = (() => {
   const clean = (value) => String(value || "")
     .toLowerCase()
     .replace(/\([^)]*\)/g, " ")
+    .replace(/\berstwhile\b/g, " ")
     .replace(/\bpru\b/g, "prudential")
     .replace(/\bsl\b/g, "sun life")
     .replace(/smallcap/g, "small cap")
@@ -74,9 +75,9 @@ window.LiveDataVersion.matcher = (() => {
     const candidate = String(schemeName || "");
 
     if (inputLooksRegular) {
-      if (/regular/i.test(candidate)) next += 0.24;
-      if (/growth/i.test(candidate)) next += 0.1;
-      if (/direct/i.test(candidate)) next -= 0.28;
+      if (/regular/i.test(candidate)) next += 0.28;
+      if (/growth/i.test(candidate)) next += 0.12;
+      if (/direct/i.test(candidate)) next -= 0.42;
     }
 
     if (inputLooksDirect) {
@@ -84,7 +85,7 @@ window.LiveDataVersion.matcher = (() => {
       if (/regular/i.test(candidate)) next -= 0.14;
     }
 
-    if (/idcw|dividend|bonus|payout/i.test(candidate)) next -= 0.16;
+    if (/idcw|dividend|bonus|payout/i.test(candidate)) next -= 0.28;
     return next;
   };
 

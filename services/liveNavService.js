@@ -9,7 +9,7 @@ window.LiveDataVersion.liveNavService = (() => {
   const NAV_CACHE_KEY = schema.cache.navResolverKey;
   const NAV_FALLBACK_KEY = schema.cache.navFallbackKey;
   const MATCH_CACHE_KEY = schema.cache.navMatchMapKey;
-  const NAV_TTL_MS = schema.cache.navTtlMs || (30 * 60 * 1000);
+  const NAV_TTL_MS = 15 * 60 * 1000;
   const FALLBACK_TTL_MS = 24 * 60 * 60 * 1000;
   const MASTER_TTL_MS = 10 * 60 * 1000;
   const AGREEMENT_TOLERANCE = 0.005;
@@ -31,7 +31,6 @@ window.LiveDataVersion.liveNavService = (() => {
   };
 
   const normalizeDate = (value) => api.parseDisplayDate ? api.parseDisplayDate(value) : String(value || "");
-  const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
   const dateValue = (value) => {
     const iso = normalizeDate(value);
     if (!iso) return 0;
@@ -86,8 +85,6 @@ window.LiveDataVersion.liveNavService = (() => {
     const sourcePriority = (source = "") => {
       if (source === "amfi-master") return 4;
       if (source === "amfi-history") return 3;
-      if (source === "mfapi") return 2;
-      if (source === "mfdata") return 1;
       return 0;
     };
     const ordered = [...valid].sort((left, right) => {
@@ -142,29 +139,7 @@ window.LiveDataVersion.liveNavService = (() => {
     schemeName: String(fund.liveSchemeName || fund.fundName || "")
   });
 
-  const searchCandidates = async (fundName) => {
-    const [mfapiRows, mfdataRows] = await Promise.allSettled([
-      api.fetchMfApiSearch(fundName),
-      api.fetchMfDataSearch(fundName)
-    ]);
-
-    const rows = [];
-    if (mfapiRows.status === "fulfilled") rows.push(...mfapiRows.value.map((row) => ({
-      schemeCode: String(row.schemeCode || row.scheme_code || ""),
-      schemeName: String(row.schemeName || row.scheme_name || ""),
-      nav: Number(row.nav),
-      date: normalizeDate(row.date || row.nav_date),
-      source: "mfapi-search"
-    })));
-    if (mfdataRows.status === "fulfilled") rows.push(...mfdataRows.value.map((row) => ({
-      schemeCode: String(row.scheme_code || row.amfi_code || ""),
-      schemeName: String(row.scheme_name || row.name || ""),
-      nav: Number(row.nav),
-      date: normalizeDate(row.nav_date || row.date),
-      source: "mfdata-search"
-    })));
-    return rows.filter((row) => row.schemeCode && row.schemeName);
-  };
+  const searchCandidates = async () => [];
 
   const buildMasterIndex = (rows) => {
     const bySchemeCode = new Map();
@@ -239,11 +214,6 @@ window.LiveDataVersion.liveNavService = (() => {
 
     const narrowedRows = pickCandidatePool(fund, masterRows, masterIndex);
     let candidate = matcher.matchFundToScheme(fund, narrowedRows)?.row || null;
-    if (!candidate) {
-      const searched = await searchCandidates(fund.fundName || fund.rawFundName || "");
-      candidate = matcher.matchFundToScheme(fund, searched)?.row || null;
-    }
-
     if (candidate) {
       persistMatch(fund.id, {
         schemeCode: candidate.schemeCode,
@@ -255,13 +225,30 @@ window.LiveDataVersion.liveNavService = (() => {
     return candidate;
   };
 
+  const resolveMasterCandidate = (fund, masterRows, masterIndex) => {
+    const cached = matchCache().mappings?.[fund.id];
+    if (cached?.schemeCode) {
+      const exact = masterIndex.bySchemeCode.get(String(cached.schemeCode));
+      if (exact) return exact;
+    }
+    const narrowedRows = pickCandidatePool(fund, masterRows, masterIndex);
+    const candidate = matcher.matchFundToScheme(fund, narrowedRows)?.row || null;
+    if (candidate) {
+      persistMatch(fund.id, {
+        schemeCode: candidate.schemeCode,
+        isinGrowth: candidate.isinGrowth || "",
+        schemeName: candidate.schemeName
+      });
+    }
+    return candidate;
+  };
+
   const buildMasterRows = async () => {
     if ((Date.now() - masterRowsMemo.savedAt) <= MASTER_TTL_MS && masterRowsMemo.rows.length) {
       return masterRowsMemo.rows;
     }
     if (masterRowsInFlight) return masterRowsInFlight;
 
-    const backendApiBase = window.LIVE_CONFIG?.backendApiBase || window.LiveDataVersion?.config?.backendApiBase || "";
     masterRowsInFlight = (async () => {
       const merged = new Map();
       const mergeRow = (row) => {
@@ -286,26 +273,6 @@ window.LiveDataVersion.liveNavService = (() => {
         warn("amfi master fetch failed", error);
       }
 
-      if (backendApiBase) {
-        try {
-          const backendFunds = await api.fetchBackendFunds(backendApiBase);
-          if (backendFunds?.length) {
-            backendFunds.forEach((fund) => {
-              mergeRow({
-                schemeCode: String(fund.schemeCode || ""),
-                schemeName: String(fund.schemeName || ""),
-                isinGrowth: String(fund.isin || ""),
-                nav: Number(fund.nav),
-                date: normalizeDate(fund.navDate),
-                source: "backend-master"
-              });
-            });
-          }
-        } catch (error) {
-          warn("backend master fetch failed", error);
-        }
-      }
-
       const rows = [...merged.values()].filter((row) => row.schemeCode && row.schemeName);
       masterRowsMemo = { savedAt: Date.now(), rows };
       return rows;
@@ -320,36 +287,13 @@ window.LiveDataVersion.liveNavService = (() => {
 
   const fetchVerifiedNav = async (fund, candidate) => {
     const cached = getCachedFundNav(fund.id);
-    const sources = [];
-
     if (Number.isFinite(Number(candidate?.nav))) {
-      sources.push({
-        nav: Number(candidate.nav),
-        date: normalizeDate(candidate.date),
-        source: candidate?.source || "amfi-master"
-      });
-    }
-
-    if (candidate?.schemeCode) {
-      const [amfiHistory, mfapiLatest, mfdataLatest] = await Promise.allSettled([
-        api.fetchAmfiHistoryLatest(candidate.schemeCode),
-        api.fetchMfApiLatest(candidate.schemeCode),
-        api.fetchMfDataScheme(candidate.schemeCode)
-      ]);
-
-      if (amfiHistory.status === "fulfilled" && Number.isFinite(Number(amfiHistory.value?.nav))) sources.push(amfiHistory.value);
-      if (mfapiLatest.status === "fulfilled" && Number.isFinite(Number(mfapiLatest.value?.nav))) sources.push(mfapiLatest.value);
-      if (mfdataLatest.status === "fulfilled" && Number.isFinite(Number(mfdataLatest.value?.nav))) sources.push(mfdataLatest.value);
-    }
-
-    const resolved = chooseBestNav(sources);
-    if (resolved?.chosen) {
       const payload = {
-        nav: Number(resolved.chosen.nav),
-        date: normalizeDate(resolved.chosen.date || candidate?.date || fund.latestDate),
-        source: resolved.chosen.source,
-        warning: resolved.warning,
-        agreedSources: resolved.agreedSources
+        nav: Number(candidate.nav),
+        date: normalizeDate(candidate.date || fund.latestDate),
+        source: candidate?.source || "amfi-master",
+        warning: false,
+        agreedSources: [candidate?.source || "amfi-master"]
       };
       saveFundNav(fund.id, payload);
       return payload;
@@ -408,8 +352,26 @@ window.LiveDataVersion.liveNavService = (() => {
   const resolveLatestRows = async (funds) => {
     const masterRows = await buildMasterRows();
     const masterIndex = buildMasterIndex(masterRows);
-    return runWithConcurrency(funds, 3, async (fund) => {
-      await sleep(100);
+    const fastPathRows = funds.map((fund) => {
+      const candidate = resolveMasterCandidate(fund, masterRows, masterIndex);
+      if (!candidate || !Number.isFinite(Number(candidate.nav))) return null;
+      return {
+        targetId: fund.id,
+        schemeCode: String(candidate.schemeCode || fund.schemeCode || ""),
+        schemeName: String(candidate.schemeName || fund.liveSchemeName || fund.fundName || ""),
+        isinGrowth: String(candidate.isinGrowth || ""),
+        nav: Number(candidate.nav),
+        date: normalizeDate(candidate.date || fund.latestDate),
+        source: `${candidate.source || "amfi-master"}-fast-path`,
+        warning: false
+      };
+    });
+
+    if (masterRows.length && fastPathRows.every(Boolean)) {
+      return fastPathRows;
+    }
+
+    return runWithConcurrency(funds, 6, async (fund) => {
       const row = await fetchLiveNav(fund, masterRows, masterIndex);
       log("resolved", fund.fundName, row.source, row.nav);
       return row;
