@@ -1,9 +1,11 @@
 (async () => {
   const MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000;
-  const BUILD_VERSION = "live-nav-v24";
+  const BUILD_VERSION = "live-nav-v26";
   const LAST_SYNCED_DATE_KEY = "lastSyncedDate";
   const LAST_SYNC_ATTEMPT_KEY = "lastSyncAttempt";
   const CACHED_NAV_DATE_KEY = "cachedNavDate";
+  const LAST_SYNC_WINDOW_KEY = "lastSyncWindow";
+  const MORNING_SYNC_HOUR = 6;
   const NAV_SYNC_THROTTLE_MS = 15 * 60 * 1000;
   const NAV_SYNC_TIMEOUT_MS = 40 * 1000;
   const NAV_SYNC_RETRY_DELAYS_MS = [0, 10000];
@@ -73,16 +75,30 @@
     }
   };
 
+  const currentSyncWindow = () => new Date().getHours() >= MORNING_SYNC_HOUR ? "morning" : "midnight";
+  const currentSyncWindowToken = () => `${localTodayIso()}:${currentSyncWindow()}`;
+
+  const readLastSyncWindow = () => {
+    try {
+      return String(localStorage.getItem(LAST_SYNC_WINDOW_KEY) || "").trim();
+    } catch {
+      return "";
+    }
+  };
+
   const markSyncAttempt = () => {
     try {
       localStorage.setItem(LAST_SYNC_ATTEMPT_KEY, String(Date.now()));
     } catch {}
   };
 
-  const markSyncSuccessForToday = () => {
+  const markSyncSuccess = ({ countForToday = true } = {}) => {
     try {
       localStorage.setItem(LAST_SYNC_ATTEMPT_KEY, String(Date.now()));
-      localStorage.setItem(LAST_SYNCED_DATE_KEY, localTodayIso());
+      if (countForToday) {
+        localStorage.setItem(LAST_SYNCED_DATE_KEY, localTodayIso());
+      }
+      localStorage.setItem(LAST_SYNC_WINDOW_KEY, currentSyncWindowToken());
     } catch {}
   };
 
@@ -316,7 +332,7 @@
     if (window[SYNC_IN_FLIGHT_FLAG]) return true;
     if (needsLiveNavHydration()) return false;
     if (!isRecentNavDate(navDateOf(window.FUND_APP_DATA))) return false;
-    if (readLastSyncedDate() === localTodayIso()) return true;
+    if (readLastSyncWindow() === currentSyncWindowToken()) return true;
     const lastAttemptAt = readLastSyncAttempt();
     if (lastAttemptAt && (Date.now() - lastAttemptAt) < NAV_SYNC_THROTTLE_MS) return true;
     return false;
@@ -335,9 +351,10 @@
       const requiresApply = needsLiveNavHydration()
         || !currentDate
         || (snapshotDate && snapshotDate !== currentDate);
+      const countForToday = true;
 
       if (!requiresApply && snapshotDate && snapshotDate === cachedNavDate && hasUsableLiveNavData(window.FUND_APP_DATA)) {
-        markSyncSuccessForToday();
+        markSyncSuccess({ countForToday });
         return;
       }
 
@@ -349,7 +366,7 @@
       const applied = applyDatasetUpdate(nextData, "snapshot-sync");
       if (applied) {
         writeCachedNavDate(snapshotDate || navDateOf(window.FUND_APP_DATA));
-        markSyncSuccessForToday();
+        markSyncSuccess({ countForToday });
         return;
       }
 
@@ -358,7 +375,7 @@
         detail: { data: nextData, reason: "snapshot-sync", force: true }
       }));
       writeCachedNavDate(snapshotDate || navDateOf(nextData));
-      markSyncSuccessForToday();
+      markSyncSuccess({ countForToday });
     } catch (error) {
       console.warn("[live-data-version] background snapshot sync failed", error);
     } finally {

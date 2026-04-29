@@ -236,6 +236,57 @@ const formatDateValue = (iso) => {
 const navDateSuffix = () => appData?.liveNavStatus === "last-available" ? " (last available)" : "";
 const formatDate = (iso) => iso ? `Data as of ${formatDateValue(iso)}${navDateSuffix()}` : "Latest NAV syncing";
 const hasLiveNav = (fund) => Number.isFinite(Number(fund?.latestNav)) && Boolean(String(fund?.liveNavDate || "").trim());
+const LAST_SYNC_ATTEMPT_KEY = "lastSyncAttempt";
+const LAST_SYNC_WINDOW_KEY = "lastSyncWindow";
+const MORNING_SYNC_HOUR = 6;
+
+const localTodayIso = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const currentSyncWindow = () => new Date().getHours() >= MORNING_SYNC_HOUR ? "morning" : "midnight";
+const currentSyncWindowLabel = () => currentSyncWindow() === "morning" ? "6 AM check" : "12 AM check";
+const currentSyncWindowToken = () => `${localTodayIso()}:${currentSyncWindow()}`;
+
+const updateLiveSyncBadge = () => {
+  const badge = $("heroSyncBadge");
+  if (!badge) return;
+
+  let lastWindow = "";
+  let lastAttempt = 0;
+  try {
+    lastWindow = String(localStorage.getItem(LAST_SYNC_WINDOW_KEY) || "").trim();
+    lastAttempt = Number(localStorage.getItem(LAST_SYNC_ATTEMPT_KEY) || 0);
+  } catch {}
+
+  const liveDate = safeIsoDate(appData?.liveNavDate);
+  const syncing = appData?.liveNavStatus === "syncing" || !liveDate;
+  const syncedThisWindow = lastWindow === currentSyncWindowToken();
+
+  let label = "Sync pending";
+  let tone = "warn";
+
+  if (syncing) {
+    label = "Syncing live NAV";
+    tone = "warn";
+  } else if (syncedThisWindow) {
+    label = `Updated in ${currentSyncWindowLabel()}`;
+    tone = "good";
+  } else if (lastAttempt > 0) {
+    label = `Checked, waiting for ${currentSyncWindowLabel()}`;
+    tone = "neutral";
+  }
+
+  badge.textContent = label;
+  badge.dataset.tone = tone;
+  badge.title = syncedThisWindow
+    ? `This device completed the ${currentSyncWindowLabel()} sync window`
+    : "This badge shows whether this device has completed the current sync window";
+};
 
 const scoreLabel = (value) => String(Math.round(value || 0));
 const scoreOf = (fund) => fund?.dashboardScore ?? 0;
@@ -1268,6 +1319,7 @@ const renderDashboard = () => {
 
   $("heroCategory").textContent = state.category;
   $("heroDate").textContent = formatDate(latestNavDateForCategory(state.category));
+  updateLiveSyncBadge();
   const heroScoreValue = scoreOf(fund);
   $("heroScore").textContent = scoreLabel(heroScoreValue);
   $("heroScoreBadge")?.setAttribute("data-score-tone", scoreTone(heroScoreValue));

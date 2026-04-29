@@ -962,6 +962,36 @@ input {
   line-height: 1.05;
 }
 
+.sync-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  margin-top: 10px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  contain: content;
+}
+
+.sync-badge[data-tone="good"] {
+  color: var(--good);
+  border-color: rgba(34, 197, 94, 0.24);
+}
+
+.sync-badge[data-tone="warn"] {
+  color: var(--warn);
+  border-color: rgba(245, 158, 11, 0.24);
+}
+
+.sync-badge[data-tone="neutral"] {
+  color: var(--blue);
+  border-color: rgba(96, 165, 250, 0.24);
+}
+
 .hero-score {
   width: 88px;
   height: 88px;
