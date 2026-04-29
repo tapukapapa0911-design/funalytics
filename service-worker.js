@@ -1,4 +1,4 @@
-const SHELL_CACHE = "funalytics-shell-v21";
+const SHELL_CACHE = "funalytics-shell-v22";
 const NAV_CACHE = "funalytics-nav-v2";
 const NAV_SYNC_TAG = "funalytics-nav-sync";
 const NAV_PERIODIC_SYNC_TAG = "funalytics-nav-daily";

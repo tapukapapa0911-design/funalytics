@@ -197,6 +197,14 @@ function loadStoredData() {
   }
 }
 
+const saveStoredData = (data) => {
+  if (!data || !Array.isArray(data.funds) || !Array.isArray(data.summaries)) return;
+  localStorage.setItem(APP_DATA_STORAGE_KEY, JSON.stringify({
+    savedAt: Date.now(),
+    data
+  }));
+};
+
 function selectPreferredData(stored, injected) {
   if (!stored) return injected;
   if (!injected) return stored;
@@ -2499,7 +2507,7 @@ const handleUpload = async (file) => {
         const parsed = JSON.parse(String(reader.result));
         if (!["excel-dashboard", "live-dashboard"].includes(parsed.analysis) || !parsed.funds || !parsed.summaries) throw new Error("Invalid data");
         appData = normalizeAppData(parsed);
-        localStorage.setItem(APP_DATA_STORAGE_KEY, JSON.stringify(appData));
+            saveStoredData(appData);
         syncStateToData();
         renderAll();
         $("uploadStatus").textContent = "Updated";
@@ -2514,8 +2522,8 @@ const handleUpload = async (file) => {
   try {
     const imported = normalizeAppData(await window.WorkbookImporter.buildDataFromWorkbookFile(file));
     appData = imported;
-    localStorage.removeItem(APP_DATA_STORAGE_KEY);
-    localStorage.setItem(APP_DATA_STORAGE_KEY, JSON.stringify(imported));
+      localStorage.removeItem(APP_DATA_STORAGE_KEY);
+      saveStoredData(imported);
     syncStateToData();
     renderAll();
     $("uploadStatus").textContent = "Updated";
@@ -2560,10 +2568,7 @@ const renderCurrentView = () => {
 const persistLiveDataWhenIdle = (data) => {
   const save = () => {
     try {
-      localStorage.setItem(APP_DATA_STORAGE_KEY, JSON.stringify({
-        savedAt: Date.now(),
-        data
-      }));
+      saveStoredData(data);
     } catch (error) {
       console.warn(`${APP_NAME} live data cache write skipped`, error);
     }

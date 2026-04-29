@@ -1,10 +1,13 @@
 (async () => {
   const MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000;
-  const BUILD_VERSION = "live-nav-v33";
+  const BUILD_VERSION = "live-nav-v34";
   const LAST_SYNCED_DATE_KEY = "lastSyncedDate";
   const LAST_SYNC_ATTEMPT_KEY = "lastSyncAttempt";
   const CACHED_NAV_DATE_KEY = "cachedNavDate";
   const LAST_SYNC_WINDOW_KEY = "lastSyncWindow";
+  const DAILY_SYNC_DATE_KEY = "fundpulse-daily-sync-date";
+  const DAILY_SYNC_COMPLETED_KEY = "fundpulse-daily-sync-completed";
+  const DAILY_SYNC_AT_KEY = "fundpulse-daily-synced-at";
   const MORNING_SYNC_HOUR = 6;
   const NAV_SYNC_THROTTLE_MS = 15 * 60 * 1000;
   const NAV_SYNC_TIMEOUT_MS = 40 * 1000;
@@ -119,6 +122,9 @@
       localStorage.setItem(LAST_SYNC_ATTEMPT_KEY, String(Date.now()));
       if (countForToday) {
         localStorage.setItem(LAST_SYNCED_DATE_KEY, localTodayIso());
+        localStorage.setItem(DAILY_SYNC_DATE_KEY, localTodayIso());
+        localStorage.setItem(DAILY_SYNC_COMPLETED_KEY, "true");
+        localStorage.setItem(DAILY_SYNC_AT_KEY, new Date().toISOString());
       }
       localStorage.setItem(LAST_SYNC_WINDOW_KEY, currentSyncWindowToken());
     } catch {}
@@ -364,8 +370,8 @@
     if (window[SYNC_IN_FLIGHT_FLAG]) return true;
     const completedToday = (() => {
       try {
-        return localStorage.getItem("fundpulse-daily-sync-date") === localTodayIso()
-          && localStorage.getItem("fundpulse-daily-sync-completed") === "true";
+        return localStorage.getItem(DAILY_SYNC_DATE_KEY) === localTodayIso()
+          && localStorage.getItem(DAILY_SYNC_COMPLETED_KEY) === "true";
       } catch {
         return false;
       }

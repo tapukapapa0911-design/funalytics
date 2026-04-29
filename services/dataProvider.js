@@ -6,7 +6,7 @@ window.LiveDataVersion.dataProvider = (() => {
   const { ensureAppShape, clone } = window.LiveDataVersion.validation;
   const mapper = window.LiveDataVersion.dataMapper;
   const api = window.LiveDataVersion.apiClients;
-  const DATASET_TTL_MS = 15 * 60 * 1000;
+  const DATASET_TTL_MS = 24 * 60 * 60 * 1000;
 
   const readBackupData = async () => {
     if (window.EXCEL_BACKUP_DATA) return clone(window.EXCEL_BACKUP_DATA);
@@ -52,10 +52,19 @@ window.LiveDataVersion.dataProvider = (() => {
     return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
   };
 
-  const navDateOf = (data) => data?.liveNavDate || "";
+  const navDateOf = (data) => {
+    const explicitDate = localIsoDate(data?.liveNavDate || data?.latestDate);
+    if (explicitDate) return explicitDate;
+    const fundDates = Array.isArray(data?.funds)
+      ? data.funds
+          .map((fund) => localIsoDate(fund?.liveNavDate || fund?.latestNavDate || fund?.navDate))
+          .filter(Boolean)
+      : [];
+    return fundDates.sort().at(-1) || "";
+  };
   const hasUsableLiveNavData = (data) => {
     if (!data) return false;
-    if (dateValue(data?.liveNavDate)) return true;
+    if (dateValue(navDateOf(data))) return true;
     return Array.isArray(data?.funds) && data.funds.some((fund) => (
       Number.isFinite(Number(fund?.latestNav)) && dateValue(fund?.liveNavDate)
     ));
