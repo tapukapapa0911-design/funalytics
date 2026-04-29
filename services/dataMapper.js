@@ -129,9 +129,8 @@ window.LiveDataVersion.dataMapper = (() => {
     window.setTimeout(resolve, 0);
   });
 
-  const mergeLatestNav = (backupData, latestRows) => {
+  const mergeLatestNavSync = (backupData, latestRows) => {
     const next = clone(backupData);
-    const backupLookup = buildBackupLookup(backupData);
     const normalizedRows = normalizeSnapshotRows(backupData, latestRows);
     const mappedFunds = [];
     const latestByTargetId = new Map();
@@ -215,7 +214,7 @@ window.LiveDataVersion.dataMapper = (() => {
     return { data: next, mappedFunds };
   };
 
-  const mergeLatestNavChunked = async (backupData, latestRows, options = {}) => {
+  const mergeLatestNav = async (backupData, latestRows, options = {}) => {
     const next = clone(backupData);
     const normalizedRows = normalizeSnapshotRows(backupData, latestRows);
     const mappedFunds = [];
@@ -223,7 +222,8 @@ window.LiveDataVersion.dataMapper = (() => {
     const latestBySchemeCode = new Map();
     const latestByNameKey = new Map();
     const latestByToken = new Map();
-    const chunkSize = Math.max(12, Number(options.chunkSize) || 32);
+    const rowChunkSize = Math.max(100, Number(options.rowChunkSize) || 500);
+    const fundChunkSize = Math.max(5, Number(options.fundChunkSize) || 20);
 
     const pushUnique = (bucket, row) => {
       if (!bucket || !row) return;
@@ -250,7 +250,7 @@ window.LiveDataVersion.dataMapper = (() => {
         if (!latestByToken.has(token)) latestByToken.set(token, []);
         latestByToken.get(token).push(row);
       }
-      if ((index + 1) % chunkSize === 0) {
+      if ((index + 1) % rowChunkSize === 0) {
         await yieldToBrowser();
       }
     }
@@ -290,7 +290,7 @@ window.LiveDataVersion.dataMapper = (() => {
         });
       }
 
-      if ((index + 1) % chunkSize === 0) {
+      if ((index + 1) % fundChunkSize === 0) {
         await yieldToBrowser();
       }
     }
@@ -308,7 +308,7 @@ window.LiveDataVersion.dataMapper = (() => {
         liveNavDate: liveMatch.liveNavDate || fund.liveNavDate || fund.latestNavDate || null
       } : fund);
 
-      if ((index + 1) % chunkSize === 0) {
+      if ((index + 1) % fundChunkSize === 0) {
         await yieldToBrowser();
       }
     }
@@ -317,6 +317,8 @@ window.LiveDataVersion.dataMapper = (() => {
     next.liveNavDate = next.funds.map((fund) => fund.liveNavDate).filter(Boolean).sort().at(-1) || next.liveNavDate || null;
     return { data: next, mappedFunds };
   };
+
+  const mergeLatestNavChunked = (backupData, latestRows, options = {}) => mergeLatestNav(backupData, latestRows, options);
 
   const applyHistoryToFunds = (data, historiesByFundId) => {
     const next = clone(data);
@@ -445,5 +447,5 @@ window.LiveDataVersion.dataMapper = (() => {
     return ensureAppShape(next, data);
   };
 
-  return { mergeLatestNav, mergeLatestNavChunked, applyHistoryToFunds, buildBackupLookup };
+  return { mergeLatestNav, mergeLatestNavChunked, mergeLatestNavSync, applyHistoryToFunds, buildBackupLookup };
 })();

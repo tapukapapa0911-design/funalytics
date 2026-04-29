@@ -148,7 +148,7 @@ window.LiveDataVersion.dataProvider = (() => {
   const buildSnapshotDataset = (backupData) => {
     const snapshotRows = snapshotRowsIfFresherThanBackup(backupData?.liveNavDate || backupData?.latestDate);
     if (!snapshotRows.length) return null;
-    const { data: merged } = mapper.mergeLatestNav(backupData, snapshotRows);
+    const { data: merged } = mapper.mergeLatestNavSync(backupData, snapshotRows);
     merged.liveNavDate = latestSnapshotDate() || latestDateFromRows(snapshotRows, merged.liveNavDate || backupData.liveNavDate || "");
     merged.liveNavStatus = "fresh";
     return sanitizeDatasetDates(merged, backupData);
@@ -159,7 +159,7 @@ window.LiveDataVersion.dataProvider = (() => {
       ? snapshotPayload.items
       : snapshotRowsIfFresherThanBackup(backupData?.liveNavDate || backupData?.latestDate);
     if (!snapshotRows.length) return null;
-    const { data: merged } = await mapper.mergeLatestNavChunked(backupData, snapshotRows);
+    const { data: merged } = await mapper.mergeLatestNav(backupData, snapshotRows);
     merged.liveNavDate = localIsoDate(snapshotPayload?.latestDate)
       || latestSnapshotDate()
       || latestDateFromRows(snapshotRows, merged.liveNavDate || backupData.liveNavDate || "");
@@ -205,7 +205,7 @@ window.LiveDataVersion.dataProvider = (() => {
         );
         return persistDataset(ensureAppShape({ ...fallback, liveNavStatus: "last-available" }, safeBackup));
       }
-      const { data: merged } = mapper.mergeLatestNav(safeBackup, latestNavRows);
+      const { data: merged } = await mapper.mergeLatestNav(safeBackup, latestNavRows);
       merged.liveNavDate = localIsoDate(snapshot?.latestDate) || latestDateFromRows(latestNavRows, merged.liveNavDate || safeBackup.liveNavDate || "");
       merged.liveNavStatus = "fresh";
       return persistDataset(ensureAppShape(merged, safeBackup));
