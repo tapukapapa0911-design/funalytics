@@ -1,5 +1,5 @@
-const SHELL_CACHE = "funalytics-shell-v10";
-const NAV_CACHE = "funalytics-nav-v1";
+const SHELL_CACHE = "funalytics-shell-v11";
+const NAV_CACHE = "funalytics-nav-v2";
 const NAV_SYNC_TAG = "funalytics-nav-sync";
 const NAV_PERIODIC_SYNC_TAG = "funalytics-nav-daily";
 const DEFAULT_NAV_URL = "https://funalytics-backend.onrender.com/nav";
@@ -79,6 +79,10 @@ self.addEventListener("message", (event) => {
   const data = event.data || {};
   if (data.type === "SKIP_WAITING") {
     self.skipWaiting();
+    return;
+  }
+  if (data.type === "CLEAR_NAV_CACHE") {
+    event.waitUntil?.(caches.delete(NAV_CACHE));
     return;
   }
   if (data.type === "TRIGGER_NAV_SYNC") {

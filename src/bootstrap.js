@@ -1,15 +1,16 @@
 (async () => {
   const MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000;
-  const BUILD_VERSION = "live-nav-v21";
+  const BUILD_VERSION = "live-nav-v22";
   const LAST_SYNCED_DATE_KEY = "lastSyncedDate";
   const LAST_SYNC_ATTEMPT_KEY = "lastSyncAttempt";
   const CACHED_NAV_DATE_KEY = "cachedNavDate";
   const NAV_SYNC_THROTTLE_MS = 15 * 60 * 1000;
-  const NAV_SYNC_TIMEOUT_MS = 35 * 1000;
-  const NAV_SYNC_RETRY_DELAYS_MS = [0, 5000, 15000, 30000];
+  const NAV_SYNC_TIMEOUT_MS = 40 * 1000;
+  const NAV_SYNC_RETRY_DELAYS_MS = [0, 10000];
   const SYNC_IN_FLIGHT_FLAG = "__fundpulseNavSyncInFlight";
   const SW_NAV_SYNC_TAG = "funalytics-nav-sync";
   const SW_NAV_PERIODIC_TAG = "funalytics-nav-daily";
+  const NAV_CACHE_CLEARED_KEY = "fundpulse-nav-cache-cleared-v2";
 
   const loadScript = (src) => new Promise((resolve, reject) => {
     const versionedSrc = src.includes("?") ? `${src}&v=${BUILD_VERSION}` : `${src}?v=${BUILD_VERSION}`;
@@ -133,6 +134,7 @@
     if (!cacheApi || !schema?.cache) return;
     cacheApi.purgeStaleByPrefix?.("live-funalytics", MAX_CACHE_AGE_MS);
     cacheApi.purgeKeysOlderThan?.([schema.cache.datasetKey], MAX_CACHE_AGE_MS);
+    cacheApi.purgeKeysOlderThan?.(["fundpulse-live-data-v8"], MAX_CACHE_AGE_MS);
     cacheApi.remove?.("fundpulse-live-data-v5");
     cacheApi.remove?.("fundpulse-live-data-v6");
     cacheApi.remove?.("fundpulse-live-data-v7");
@@ -148,14 +150,13 @@
     cacheApi.remove?.("live-funalytics-nav-fallback-cache-v7");
   };
 
+  window.LIVE_NAV_SNAPSHOT = null;
   const backupData = window.LiveDataVersion.validation.clone(window.FUND_APP_DATA || {});
   window.EXCEL_BACKUP_DATA = backupData;
 
   clearStaleNavCaches();
-  const backendBase = () => (
-    window.LiveDataVersion?.apiClients?.backendBase?.()
-      || String(window.LIVE_CONFIG?.backendApiBase || "https://funalytics-backend.onrender.com").trim().replace(/\/+$/, "")
-  );
+  const backendBase = () => window.LiveDataVersion?.apiClients?.backendBase?.()
+    || "https://funalytics-backend.onrender.com";
   const navUrl = () => `${backendBase()}/nav`;
   const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
@@ -215,16 +216,17 @@
 
   const applyDatasetUpdate = (nextData, reason) => {
     if (!nextData) return;
-    if (!shouldReplaceDataset(window.FUND_APP_DATA, nextData)) return;
+    if (!shouldReplaceDataset(window.FUND_APP_DATA, nextData)) return false;
     window.FUND_APP_DATA = nextData;
     const notify = () => {
       window.dispatchEvent(new CustomEvent("live-data:updated", { detail: { data: nextData, reason } }));
     };
     if ("requestAnimationFrame" in window) {
       window.requestAnimationFrame(notify);
-      return;
+      return true;
     }
     window.setTimeout(notify, 0);
+    return true;
   };
 
   const currentBackupData = () => window.EXCEL_BACKUP_DATA || backupData;
@@ -269,17 +271,30 @@
           }
         } catch {}
       }
-
-      const worker = readyRegistration.active || readyRegistration.waiting || readyRegistration.installing;
-      worker?.postMessage({
-        type: "TRIGGER_NAV_SYNC",
-        navUrl: navUrl()
-      });
       return readyRegistration;
     } catch (error) {
       console.warn("[live-data-version] service worker nav sync setup failed", error);
       return null;
     }
+  };
+
+  const clearServiceWorkerNavCache = async (registration) => {
+    if (!registration) return;
+    try {
+      if (localStorage.getItem(NAV_CACHE_CLEARED_KEY) === "true") return;
+      const worker = registration.active || registration.waiting || registration.installing;
+      worker?.postMessage({ type: "CLEAR_NAV_CACHE" });
+      localStorage.setItem(NAV_CACHE_CLEARED_KEY, "true");
+    } catch {}
+  };
+
+  const triggerServiceWorkerNavSync = async (registration) => {
+    if (!registration) return;
+    const worker = registration.active || registration.waiting || registration.installing;
+    worker?.postMessage({
+      type: "TRIGGER_NAV_SYNC",
+      navUrl: navUrl()
+    });
   };
 
   const shouldSkipSyncFetch = () => {
@@ -304,11 +319,26 @@
         return;
       }
 
-      const applied = await applySnapshotData("snapshot-sync", snapshot);
+      const nextData = await dataProvider.refreshAppData({
+        backupData: currentBackupData(),
+        forceLive: true,
+        snapshotOverride: snapshot
+      });
+      const applied = applyDatasetUpdate(nextData, "snapshot-sync");
       if (applied) {
         writeCachedNavDate(snapshotDate || navDateOf(window.FUND_APP_DATA));
         markSyncSuccessForToday();
+        return;
       }
+
+      window.FUND_APP_DATA = nextData;
+      window.dispatchEvent(new CustomEvent("live-data:updated", {
+        detail: { data: nextData, reason: "snapshot-sync", force: true }
+      }));
+      writeCachedNavDate(snapshotDate || navDateOf(nextData));
+      markSyncSuccessForToday();
+    } catch (error) {
+      console.warn("[live-data-version] background snapshot sync failed", error);
     } finally {
       window[SYNC_IN_FLIGHT_FLAG] = false;
     }
@@ -316,7 +346,10 @@
 
   const startBackgroundSyncAfterPaint = () => {
     const runner = async () => {
-      await registerServiceWorkerSync();
+      const registration = await registerServiceWorkerSync();
+      await clearServiceWorkerNavCache(registration);
+      await wait(150);
+      await triggerServiceWorkerNavSync(registration);
       await runBackgroundSnapshotSync();
     };
 

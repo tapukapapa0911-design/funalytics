@@ -141,6 +141,7 @@ window.LiveDataVersion.dataProvider = (() => {
     if (!rows.length) return [];
     const snapshotDate = latestSnapshotDate() || latestDateFromRows(rows, "");
     if (dateValue(snapshotDate) > dateValue(backupLatestDate)) return rows;
+    if (dateValue(snapshotDate) === dateValue(backupLatestDate) && isSnapshotRecent()) return rows;
     return snapshotRowsIfRecent();
   };
 
@@ -182,7 +183,7 @@ window.LiveDataVersion.dataProvider = (() => {
     return sanitized;
   };
 
-  const refreshAppData = async ({ backupData, forceLive = false }) => {
+  const refreshAppData = async ({ backupData, forceLive = false, snapshotOverride = null }) => {
     const safeBackup = ensureAppShape(backupData, backupData) || await readBackupData();
     const cachedData = readCachedDataset(safeBackup);
     const snapshotData = buildSnapshotDataset(safeBackup);
@@ -192,7 +193,9 @@ window.LiveDataVersion.dataProvider = (() => {
         return persistDataset(ensureAppShape({ ...cachedData, liveNavStatus: "fresh" }, safeBackup));
       }
 
-      const snapshot = await fetchBackendSnapshot();
+      const snapshot = snapshotOverride && Array.isArray(snapshotOverride?.items)
+        ? snapshotOverride
+        : await fetchBackendSnapshot();
       const latestNavRows = Array.isArray(snapshot?.items) ? snapshot.items : [];
       if (!latestNavRows.length) {
         const fallback = pickFresherDataset(

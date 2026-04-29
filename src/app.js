@@ -2480,6 +2480,7 @@ let liveUpdateFrameScheduled = false;
 
 window.addEventListener("live-data:updated", (event) => {
   pendingLiveUpdateData = event.detail?.data || null;
+  const forceLiveUpdate = event.detail?.force === true;
   if (liveUpdateFrameScheduled) return;
   liveUpdateFrameScheduled = true;
 
@@ -2491,7 +2492,7 @@ window.addEventListener("live-data:updated", (event) => {
 
     const currentDate = safeIsoDate(appData?.liveNavDate);
     const nextDate = safeIsoDate(nextData?.liveNavDate);
-    if (currentDate && nextDate && currentDate === nextDate) return;
+    if (!forceLiveUpdate && currentDate && nextDate && currentDate === nextDate) return;
 
     appData = nextData;
     persistLiveDataWhenIdle(nextData);

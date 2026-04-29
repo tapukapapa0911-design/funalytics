@@ -12,7 +12,10 @@ window.LiveDataVersion.apiClients = (() => {
     return response;
   };
 
-  const backendBase = () => String(window.LIVE_CONFIG?.backendApiBase || RENDER_BACKEND_BASE).trim().replace(/\/+$/, "");
+  const backendBase = () => {
+    const configured = String(window.LIVE_CONFIG?.backendApiBase || "").trim().replace(/\/+$/, "");
+    return configured || RENDER_BACKEND_BASE;
+  };
 
   const fetchJson = async (url, options = {}, timeoutMs = 10000) => {
     const response = await fetchWithTimeout(url, options, timeoutMs);

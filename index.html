@@ -4,6 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#070A12" />
+    <script>
+      window.LIVE_CONFIG = {
+        backendApiBase: "https://funalytics-backend.onrender.com"
+      };
+    </script>
     <title>Funalytics Main App - Mutual Fund Analytics Dashboard</title>
     <link rel="manifest" href="manifest.json?v=2" />
     <link rel="apple-touch-icon" href="icons/light-logo.png" />
@@ -364,25 +369,16 @@
         if (skeleton) skeleton.classList.add("hide");
       }, 1200);
     </script>
-    <script>
-      (function () {
-        var storedBase = localStorage.getItem("fundpulse-live-backend-api-base") || "";
-        var resolvedBase = storedBase.trim() || "https://funalytics-backend.onrender.com";
-        window.LIVE_CONFIG = Object.assign({}, window.LIVE_CONFIG || {}, {
-          backendApiBase: resolvedBase
-        });
-      })();
-    </script>
-  <script defer src="mockData/excel-backup.js?v=live-nav-v21"></script>
-  <script defer src="mockData/live-nav-snapshot.js?v=live-nav-v21"></script>
-  <script defer src="constants/schema.js?v=live-nav-v21"></script>
-  <script defer src="utils/cache.js?v=live-nav-v21"></script>
-  <script defer src="utils/validation.js?v=live-nav-v21"></script>
-  <script defer src="services/calculations.js?v=live-nav-v21"></script>
-  <script defer src="services/apiClients.js?v=live-nav-v21"></script>
-  <script defer src="services/matcher.js?v=live-nav-v21"></script>
-  <script defer src="services/dataMapper.js?v=live-nav-v21"></script>
-  <script defer src="services/dataProvider.js?v=live-nav-v21"></script>
-  <script defer src="src/bootstrap.js?v=live-nav-v21"></script>
+  <script defer src="mockData/excel-backup.js?v=live-nav-v22"></script>
+  <script defer src="mockData/live-nav-snapshot.js?v=live-nav-v22"></script>
+  <script defer src="constants/schema.js?v=live-nav-v22"></script>
+  <script defer src="utils/cache.js?v=live-nav-v22"></script>
+  <script defer src="utils/validation.js?v=live-nav-v22"></script>
+  <script defer src="services/calculations.js?v=live-nav-v22"></script>
+  <script defer src="services/apiClients.js?v=live-nav-v22"></script>
+  <script defer src="services/matcher.js?v=live-nav-v22"></script>
+  <script defer src="services/dataMapper.js?v=live-nav-v22"></script>
+  <script defer src="services/dataProvider.js?v=live-nav-v22"></script>
+  <script defer src="src/bootstrap.js?v=live-nav-v22"></script>
   </body>
 </html>

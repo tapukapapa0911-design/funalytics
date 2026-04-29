@@ -178,13 +178,7 @@ router.get("/nav", async (_req, res, next) => {
   try {
     res.set("Cache-Control", "public, max-age=60");
     const data = readSnapshotFile();
-    res.json({
-      generatedAt: data.generatedAt || "",
-      latestDate: data.latestDate || "",
-      count: Number(data.count || 0),
-      lastFetchTimestamp: data.lastFetchTimestamp || "",
-      items: Array.isArray(data.items) ? data.items : []
-    });
+    res.json(data);
   } catch (error) {
     next(error);
   }
