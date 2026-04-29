@@ -107,7 +107,19 @@ const isoDateValue = (value) => {
   return parsed.getTime();
 };
 
-const navDateOf = (data) => data?.liveNavDate || "";
+const navDateOf = (data) => {
+  const explicitDate = String(data?.liveNavDate || data?.latestDate || "").trim();
+  if (isoDateValue(explicitDate)) return explicitDate;
+
+  const fundDates = Array.isArray(data?.funds)
+    ? data.funds
+        .map((fund) => String(fund?.liveNavDate || fund?.latestNavDate || fund?.navDate || "").trim())
+        .filter((date) => isoDateValue(date))
+    : [];
+
+  if (!fundDates.length) return "";
+  return fundDates.sort((a, b) => isoDateValue(b) - isoDateValue(a))[0] || "";
+};
 
 const cancelDeferredRenderJob = (key) => {
   const active = deferredRenderJobs.get(key);
@@ -2548,7 +2560,10 @@ const renderCurrentView = () => {
 const persistLiveDataWhenIdle = (data) => {
   const save = () => {
     try {
-      localStorage.setItem(APP_DATA_STORAGE_KEY, JSON.stringify(data));
+      localStorage.setItem(APP_DATA_STORAGE_KEY, JSON.stringify({
+        savedAt: Date.now(),
+        data
+      }));
     } catch (error) {
       console.warn(`${APP_NAME} live data cache write skipped`, error);
     }

@@ -196,13 +196,14 @@ body.light .splash-logo-light {
   z-index: 22000;
   display: grid;
   place-items: center;
-  padding: 16px;
+  padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
   background: rgba(5, 8, 18, 0.76);
   backdrop-filter: blur(22px);
   -webkit-backdrop-filter: blur(22px);
   opacity: 0;
   transition: opacity 220ms var(--motion-snap);
   pointer-events: none;
+  overflow: hidden;
 }
 
 .daily-sync-overlay.is-visible {
@@ -210,7 +211,10 @@ body.light .splash-logo-light {
 }
 
 .daily-sync-card {
-  width: min(100%, 420px);
+  width: min(calc(100vw - 36px), 420px);
+  max-height: min(82vh, 560px);
+  margin: auto;
+  overflow: hidden;
   display: grid;
   gap: 18px;
   padding: 28px 22px 22px;
@@ -237,12 +241,14 @@ body.light .splash-logo-light {
   margin: 0;
   font-size: 22px;
   line-height: 1.08;
+  overflow-wrap: anywhere;
 }
 
 .daily-sync-copy {
   margin: 0;
   font-size: 15px;
   line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 .daily-sync-progress-shell {
@@ -276,6 +282,7 @@ body.light .splash-logo-light {
   display: grid;
   gap: 8px;
   min-height: 78px;
+  min-width: 0;
   padding: 14px 14px 12px;
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: 16px;
@@ -300,6 +307,7 @@ body.light .splash-logo-light {
   color: var(--text);
   font-size: 14px;
   line-height: 1.6;
+  overflow-wrap: anywhere;
   opacity: 0;
   transform: translateY(4px);
   transition: opacity 220ms ease, transform 220ms ease;
@@ -308,6 +316,35 @@ body.light .splash-logo-light {
 .daily-sync-fact.is-visible {
   opacity: 1;
   transform: translateY(0);
+}
+
+@media (max-width: 520px) {
+  .daily-sync-overlay {
+    align-items: center;
+    justify-items: center;
+    padding-inline: 16px;
+  }
+
+  .daily-sync-card {
+    width: min(calc(100vw - 32px), 390px);
+    gap: 15px;
+    padding: 24px 18px 18px;
+    border-radius: 20px;
+  }
+
+  .daily-sync-card h2 {
+    font-size: 24px;
+    line-height: 1.12;
+  }
+
+  .daily-sync-copy {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .daily-sync-fact-shell {
+    min-height: 92px;
+  }
 }
 
 .onboarding-panel {

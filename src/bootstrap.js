@@ -1,6 +1,6 @@
 (async () => {
   const MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000;
-  const BUILD_VERSION = "live-nav-v32";
+  const BUILD_VERSION = "live-nav-v33";
   const LAST_SYNCED_DATE_KEY = "lastSyncedDate";
   const LAST_SYNC_ATTEMPT_KEY = "lastSyncAttempt";
   const CACHED_NAV_DATE_KEY = "cachedNavDate";
@@ -48,7 +48,19 @@
     return parsed.getTime();
   };
 
-  const navDateOf = (data) => data?.liveNavDate || "";
+  const navDateOf = (data) => {
+    const explicitDate = String(data?.liveNavDate || data?.latestDate || "").trim();
+    if (isoDateValue(explicitDate)) return explicitDate;
+
+    const fundDates = Array.isArray(data?.funds)
+      ? data.funds
+          .map((fund) => String(fund?.liveNavDate || fund?.latestNavDate || fund?.navDate || "").trim())
+          .filter((date) => isoDateValue(date))
+      : [];
+
+    if (!fundDates.length) return "";
+    return fundDates.sort((a, b) => isoDateValue(b) - isoDateValue(a))[0] || "";
+  };
 
   const localTodayIso = () => {
     const now = new Date();
