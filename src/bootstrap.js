@@ -1,6 +1,6 @@
 (async () => {
   const MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000;
-  const BUILD_VERSION = "live-nav-v27";
+  const BUILD_VERSION = "live-nav-v28";
   const LAST_SYNCED_DATE_KEY = "lastSyncedDate";
   const LAST_SYNC_ATTEMPT_KEY = "lastSyncAttempt";
   const CACHED_NAV_DATE_KEY = "cachedNavDate";

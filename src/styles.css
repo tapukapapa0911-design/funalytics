@@ -962,10 +962,16 @@ input {
 }
 
 .hero-date-row {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.hero-date-row #heroDate {
+  margin: 0;
 }
 
 .sync-badge {
@@ -983,6 +989,8 @@ input {
   opacity: 0;
   transform: translateY(2px);
   transition: opacity 220ms ease, transform 220ms ease;
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 .sync-badge.is-visible {

@@ -226,15 +226,15 @@ const safeIsoDate = (value) => {
 
 const formatDateValue = (iso) => {
   const safeIso = safeIsoDate(iso);
-  if (!safeIso) return "Latest NAV syncing, please wait";
+  if (!safeIso) return "Latest NAV syncing";
   const [year, month, day] = safeIso.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
-  if (Number.isNaN(date.getTime())) return "Latest NAV syncing, please wait";
+  if (Number.isNaN(date.getTime())) return "Latest NAV syncing";
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 };
 
 const navDateSuffix = () => appData?.liveNavStatus === "last-available" ? " (last available)" : "";
-const formatDate = (iso) => iso ? `Data as of ${formatDateValue(iso)}${navDateSuffix()}` : "Latest NAV syncing, please wait";
+const formatDate = (iso) => iso ? `Data as of ${formatDateValue(iso)}${navDateSuffix()}` : "Latest NAV syncing";
 const hasLiveNav = (fund) => Number.isFinite(Number(fund?.latestNav)) && Boolean(String(fund?.liveNavDate || "").trim());
 const LAST_SYNC_ATTEMPT_KEY = "lastSyncAttempt";
 const LAST_SYNC_WINDOW_KEY = "lastSyncWindow";
