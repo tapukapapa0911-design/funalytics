@@ -1,4 +1,4 @@
-const SHELL_CACHE = "funalytics-shell-v40";
+const SHELL_CACHE = "funalytics-shell-v41";
 const NAV_CACHE = "funalytics-nav-v2";
 const NAV_SYNC_TAG = "funalytics-nav-sync";
 const NAV_PERIODIC_SYNC_TAG = "funalytics-nav-daily";
@@ -21,11 +21,12 @@ const APP_SHELL = [
   "./services/dataProvider.js",
   "./mockData/live-nav-snapshot.js",
   "./mockData/excel-backup.json",
-  "./manifest.json?v=3",
+  "./manifest.json?v=86",
   "./manifest.webmanifest",
   "./icons/light-logo.png",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png"
+  "./icons/apple-touch-icon-v86.png",
+  "./icons/icon-192-v86.png",
+  "./icons/icon-512-v86.png"
 ];
 
 const withTimeout = (input, init = {}, timeoutMs = NAV_TIMEOUT_MS) => {
