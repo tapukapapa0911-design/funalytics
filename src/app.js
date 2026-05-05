@@ -708,7 +708,10 @@ const latestNavDateForFunds = (funds = []) => {
 
 const latestNavDateForCategory = (category = state.category) => {
   const funds = allFunds().filter((fund) => fund.category === category);
-  return latestNavDateForFunds(funds) || appData?.liveNavDate || appData?.latestDate || null;
+  const fundDate = latestNavDateForFunds(funds);
+  if (fundDate) return fundDate;
+  if (appData?.liveNavStatus === "syncing") return null;
+  return appData?.liveNavDate || appData?.latestDate || null;
 };
 
 const historyFor = (fund) => {
@@ -1935,6 +1938,18 @@ const renderInsights = () => {
       note: `Rank #${fund.rank} of ${allCategoryFunds().length}`
     }
   ];
+  const insightHistory = historyFor(fund);
+  const insightCategoryAverage = categorySeries(funds);
+  const insightOutperformCount = insightHistory.filter((point) => {
+    const label = point.date ? point.date.slice(5) : point.label;
+    const cat = insightCategoryAverage.find((item) => item.label === label);
+    return metricAt(point) !== null && cat && metricAt(point) >= cat.avg;
+  }).length;
+  const aiSummary = `${buildHeadlineInsight(fund, funds)} ${storySentence(fund, funds)} ${
+    signals.latestComparison === null
+      ? "Category comparison is limited for the visible period."
+      : `It is ${signals.latestComparison >= 0 ? "ahead of" : "behind"} the category average by ${Math.abs(signals.latestComparison).toFixed(1)} pts.`
+  } Beat category average in ${insightOutperformCount} of ${insightHistory.length} visible periods.`;
   $("insightsList").innerHTML = `
     <article class="insight-card primary story-card">
       <p class="eyebrow">Headline insight</p>
@@ -1943,9 +1958,8 @@ const renderInsights = () => {
       <div class="story-tags">${tags}</div>
     </article>
     <article class="insight-card story-card">
-      <p class="eyebrow">Performance breakdown</p>
-      <h3>${typeof fund.threeYear === "number" && fund.threeYear > 0.12 ? "Strong long-term return profile" : "Balanced long-term profile with mixed signals"}</h3>
-      <p class="story-copy">${typeof fund.oneYear === "number" && fund.oneYear < 0.02 ? "Recent 1Y softness suggests short-term weakness." : "Recent 1Y performance is still constructive."}</p>
+      <p class="eyebrow">AI-style summary</p>
+      <h3>${escapeHtml(aiSummary)}</h3>
     </article>
     <article class="insight-card story-card">
       <p class="eyebrow">Trend interpretation</p>
@@ -1980,46 +1994,6 @@ const renderInsights = () => {
     renderReturnBarChart("analysisChart", chartFunds, false);
   }, 120);
 
-  const insightsChartTarget = $("insightsLineChart");
-  const insightsTooltip = $("insightsPerformanceTooltip");
-  const insightsSummary = $("insightsDashboardInsight");
-  const insightsTimeFilter = $("insightsTimeFilter");
-  if (insightsChartTarget) {
-    insightsChartTarget.innerHTML = `<div class="empty-chart">Loading performance chart...</div>`;
-    if (insightsSummary) insightsSummary.textContent = `${fund.fundName} is loading category insight...`;
-    const requestedCategory = state.category;
-    const requestedHorizon = state.horizon;
-    const requestedPeriod = state.period;
-    scheduleDeferredRenderJob(`insights-chart:${state.category}|${state.horizon}|${state.period}|${fund.id}`, () => {
-      if (state.tab !== "insights" || state.category !== requestedCategory || state.horizon !== requestedHorizon || state.period !== requestedPeriod) return;
-      const history = historyFor(fund);
-      const categoryAverage = categorySeries(funds);
-      const outperformCount = history.filter((point) => {
-        const label = point.date ? point.date.slice(5) : point.label;
-        const cat = categoryAverage.find((item) => item.label === label);
-        return metricAt(point) !== null && cat && metricAt(point) >= cat.avg;
-      }).length;
-      renderPerformanceChart("insightsLineChart", fund, funds, categoryAverage);
-          if (insightsSummary) {
-        insightsSummary.textContent = `${buildHeadlineInsight(fund, funds)} ${storySentence(fund, funds)} Beat category average in ${outperformCount} of ${history.length} visible periods.`;
-      }
-    }, 140);
-  }
-  if (insightsTimeFilter && !insightsTimeFilter.dataset.wired) {
-    insightsTimeFilter.dataset.wired = "true";
-    insightsTimeFilter.querySelectorAll("[data-period]").forEach((button) => {
-      button.addEventListener("click", () => {
-        insightsTimeFilter.querySelectorAll("[data-period]").forEach((item) => item.classList.remove("active"));
-        button.classList.add("active");
-        state.period = button.dataset.period || state.period;
-        const currentFunds = allCategoryFunds();
-        const currentFund = currentFunds[0] || selectedFund();
-        if (currentFund) {
-          renderPerformanceChart("insightsLineChart", currentFund, currentFunds, categorySeries(currentFunds));
-        }
-      });
-    });
-  }
 };
 
 const renderReturnBarChart = (id, funds, highlightSelected = true) => {
@@ -3417,13 +3391,13 @@ const renderProfile = () => {
   const installButton = profileInstallButtonEl();
   const installValue = $("installStatus");
   const installed = isInstalledApp();
+  const shouldShowInstall = !installed && (shouldShowBrowserInstallCta() || canShowInstall || Boolean(deferredInstallPrompt));
   if (installValue) {
-    installValue.textContent = installed ? "Installed" : "Tap to install";
+    installValue.textContent = installed ? "Installed" : deferredInstallPrompt ? "Tap to install" : "Install from browser";
   }
   if (installButton) {
-    const available = !installed && Boolean(deferredInstallPrompt);
-    installButton.hidden = !available;
-    installButton.style.display = available ? "" : "none";
+    installButton.hidden = !shouldShowInstall;
+    installButton.style.display = shouldShowInstall ? "" : "none";
   }
 };
 
@@ -3677,17 +3651,17 @@ const updateInstallButton = () => {
   const button = profileInstallButtonEl();
   if (!button) return;
   const installed = isInstalledApp();
-  if (installed || !canShowInstall || !deferredInstallPrompt) {
+  const shouldShowInstall = !installed && (shouldShowBrowserInstallCta() || canShowInstall || Boolean(deferredInstallPrompt));
+  if (!shouldShowInstall) {
     button.hidden = true;
     button.style.display = "none";
     return;
   }
-  const available = Boolean(deferredInstallPrompt);
-  button.hidden = !available;
-  button.style.display = available ? "" : "none";
+  button.hidden = false;
+  button.style.display = "";
   const installValue = $("installStatus");
   if (installValue) {
-    installValue.textContent = "Tap to install";
+    installValue.textContent = deferredInstallPrompt ? "Tap to install" : "Install from browser";
   }
 };
 
@@ -4051,34 +4025,47 @@ $("searchInput").addEventListener("input", (event) => {
   });
 
   $("onboardingInstallButton")?.addEventListener("click", async () => {
+    let acceptedInstall = false;
     if (deferredInstallPrompt) {
       deferredInstallPrompt.prompt();
       try {
-        await deferredInstallPrompt.userChoice;
+        const choice = await deferredInstallPrompt.userChoice;
+        acceptedInstall = choice?.outcome === "accepted";
       } finally {
         deferredInstallPrompt = null;
         updateInstallButton();
       }
     }
-    localStorage.removeItem(BROWSER_INSTALL_CTA_KEY);
+    if (acceptedInstall) {
+      localStorage.removeItem(BROWSER_INSTALL_CTA_KEY);
+    } else {
+      localStorage.setItem(BROWSER_INSTALL_CTA_KEY, "true");
+    }
     localStorage.setItem(INSTALL_FLOW_KEY, "true");
     showOnboardingSlides();
   });
 
   $("onboardingSkipInstall")?.addEventListener("click", () => {
-    localStorage.removeItem(BROWSER_INSTALL_CTA_KEY);
+    localStorage.setItem(BROWSER_INSTALL_CTA_KEY, "true");
     localStorage.setItem(INSTALL_FLOW_KEY, "true");
     showOnboardingSlides();
   });
   profileInstallButtonEl()?.addEventListener("click", async () => {
-    if (!deferredInstallPrompt) return;
+    if (!deferredInstallPrompt) {
+      const installValue = $("installStatus");
+      if (installValue) installValue.textContent = "Install from browser";
+      return;
+    }
     deferredInstallPrompt.prompt();
     try {
       const choice = await deferredInstallPrompt.userChoice;
       if (choice?.outcome === "accepted") {
         const installValue = $("installStatus");
         if (installValue) installValue.textContent = "Installed";
+        localStorage.removeItem(BROWSER_INSTALL_CTA_KEY);
         updateInstallButton();
+      } else {
+        localStorage.setItem(BROWSER_INSTALL_CTA_KEY, "true");
       }
     } finally {
       deferredInstallPrompt = null;
