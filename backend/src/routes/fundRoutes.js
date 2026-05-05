@@ -1,4 +1,4 @@
-import express from "express";
+﻿import express from "express";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,6 +14,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const backupJsonPath = path.resolve(__dirname, "../../../mockData/excel-backup.json");
 let appFundLookupPromise = null;
+const MIN_FULL_NAV_ROWS = 12000;
 
 function getCached(key) {
   const entry = responseCache.get(key);
@@ -30,6 +31,91 @@ function setCached(key, payload, ttlMs = env.cacheTtlMs) {
     payload,
     expiresAt: Date.now() + ttlMs
   });
+}
+
+const safeResponse = (obj) => {
+  const out = {};
+  for (const [key, value] of Object.entries(obj || {})) {
+    if (Array.isArray(value)) continue;
+    if (value === null || ["string", "number", "boolean"].includes(typeof value)) {
+      out[key] = value;
+    }
+  }
+  if (typeof obj?.items?.length === "number") out.count = obj.items.length;
+  return out;
+};
+
+const summariseNavUpdate = (result = {}, fallback = {}) => safeResponse({
+  status: String(result?.status || fallback?.status || "unknown"),
+  latestDate: String(result?.latestDate || fallback?.latestDate || ""),
+  count: typeof result?.count === "number"
+    ? result.count
+    : typeof result?.snapshotCount === "number"
+      ? result.snapshotCount
+      : Array.isArray(result?.items)
+        ? result.items.length
+        : Number(fallback?.count || 0),
+  generatedAt: String(result?.generatedAt || fallback?.generatedAt || ""),
+  durationMs: Number(result?.durationMs || fallback?.durationMs || 0),
+  skipped: Boolean(result?.skipped || fallback?.skipped || false),
+  ...(result?.reason ? { reason: String(result.reason) } : {})
+});
+
+const isGeneratedWithinHours = (value, hours) => {
+  const generatedAt = new Date(value || "");
+  if (Number.isNaN(generatedAt.getTime())) return false;
+  return Date.now() - generatedAt.getTime() <= hours * 60 * 60 * 1000;
+};
+
+const shouldSkipRedundantNavUpdate = (snapshot) => (
+  Number(snapshot?.count || 0) >= MIN_FULL_NAV_ROWS
+  && isGeneratedWithinHours(snapshot?.generatedAt, 20)
+);
+
+async function handleNavUpdateRequest(_req, res) {
+  const startedAt = Date.now();
+  try {
+    logger.info("NAV update trigger received");
+
+    const force = _req?.body?.force === true
+      || String(_req?.query?.force || "").toLowerCase() === "true";
+    const requestedMinRows = Number(_req?.body?.minRows);
+    const minRows = force && Number.isFinite(requestedMinRows) && requestedMinRows > 0
+      ? Math.floor(requestedMinRows)
+      : MIN_FULL_NAV_ROWS;
+    const existing = readSnapshotFile();
+    if (!force && shouldSkipRedundantNavUpdate(existing)) {
+      return res.status(200).json(safeResponse({
+        status: "skipped",
+        latestDate: existing.latestDate,
+        count: existing.count || 0,
+        generatedAt: existing.generatedAt,
+        durationMs: Date.now() - startedAt,
+        skipped: true,
+        reason: "snapshot generated within last 20 hours"
+      }));
+    }
+
+    const result = await triggerNavUpdate({ force, minRows });
+    const updated = readSnapshotFile();
+    return res.status(200).json(summariseNavUpdate(result, {
+      latestDate: updated.latestDate,
+      count: updated.count,
+      generatedAt: updated.generatedAt,
+      durationMs: Date.now() - startedAt,
+      skipped: false
+    }));
+  } catch (error) {
+    logger.error("NAV update trigger failed", error?.message || error);
+    return res.status(500).json(safeResponse({
+      status: "error",
+      latestDate: "",
+      count: 0,
+      generatedAt: "",
+      durationMs: Date.now() - startedAt,
+      error: String(error?.message || "NAV update failed")
+    }));
+  }
 }
 
 export function clearResponseCache(prefix = "") {
@@ -161,18 +247,8 @@ router.get("/meta/last-updated", async (_req, res) => {
   });
 });
 
-router.get("/update-nav", async (_req, res) => {
-  try {
-    logger.info("NAV update trigger received");
-
-    await triggerNavUpdate();
-
-    res.send("OK");   // ✅ bas ye hi response hona chahiye
-  } catch (error) {
-    logger.error("NAV update trigger failed", error?.message || error);
-    res.status(500).send("Error");
-  }
-});
+router.get("/update-nav", handleNavUpdateRequest);
+router.post("/update-nav", handleNavUpdateRequest);
 
 router.get("/nav", async (_req, res, next) => {
   try {
@@ -220,12 +296,29 @@ router.get("/api/snapshot", async (_req, res, next) => {
 });
 
 router.get("/api/cron", async (_req, res, next) => {
+  const startedAt = Date.now();
   try {
+    const existing = readSnapshotFile();
+    if (shouldSkipRedundantNavUpdate(existing)) {
+      return res.json(summariseNavUpdate({
+        status: "no-new-nav",
+        latestDate: existing.latestDate,
+        count: existing.count,
+        generatedAt: existing.generatedAt,
+        durationMs: Date.now() - startedAt,
+        skipped: true,
+        reason: "snapshot generated within last 20 hours"
+      }));
+    }
+
     const result = await triggerNavUpdate();
-    res.json({
-      ok: true,
-      result: result || null
-    });
+    const updated = readSnapshotFile();
+    res.json(summariseNavUpdate(result, {
+      latestDate: updated.latestDate,
+      count: updated.count,
+      generatedAt: updated.generatedAt,
+      durationMs: Date.now() - startedAt
+    }));
   } catch (error) {
     next(error);
   }
@@ -261,3 +354,4 @@ router.get("/search", async (req, res, next) => {
 });
 
 export { router as fundRoutes };
+

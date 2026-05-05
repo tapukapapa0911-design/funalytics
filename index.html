@@ -10,17 +10,17 @@
       };
     </script>
     <title>Funalytics Main App - Mutual Fund Analytics Dashboard</title>
-    <link rel="manifest" href="manifest.json?v=2" />
-    <link rel="apple-touch-icon" href="icons/light-logo.png" />
-    <link rel="stylesheet" href="src/styles.css?v=live-nav-v37" />
+    <link rel="manifest" href="manifest.json?v=3" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png?v=3" />
+  <link rel="stylesheet" href="src/styles.css?v=live-nav-v86" />
   </head>
   <body>
     <main class="phone-shell" aria-label="Funalytics mobile app">
       <section class="app-frame">
         <div id="splashScreen" class="splash-screen" aria-hidden="true">
           <div class="splash-logo-shell">
-            <img class="splash-logo splash-logo-dark" src="icons/light-logo.png" alt="Funalytics" />
-            <img class="splash-logo splash-logo-light" src="icons/dark-logo.png" alt="Funalytics" />
+          <img class="splash-logo splash-logo-dark" src="icons/light-logo.png?v=3" alt="Funalytics" />
+          <img class="splash-logo splash-logo-light" src="icons/light-logo.png?v=3" alt="Funalytics" />
           </div>
         </div>
         <div id="onboarding" class="onboarding-overlay" hidden aria-hidden="true">
@@ -97,30 +97,14 @@
         </div>
 
         <div id="app" class="app is-loading">
-          <header class="topbar">
-            <div>
-              <p class="eyebrow">Mutual Fund Dashboard</p>
-              <h1>Funalytics</h1>
+          <header class="topbar topbar-v2">
+            <div class="topbar-logo-wrap" id="themeToggle" role="button" tabindex="0" aria-label="Toggle theme" title="Toggle theme">
+              <img class="app-logo-img app-logo-img--dark" src="assets/brand/funalytics-logo-dark.png" alt="Funalytics" />
+              <img class="app-logo-img app-logo-img--light" src="assets/brand/funalytics-logo-light.png" alt="Funalytics" />
             </div>
-            <button class="icon-button" id="themeToggle" aria-label="Toggle theme" title="Toggle theme">
-              <span id="themeIcon" class="theme-glyph" aria-hidden="true">
-                <svg class="theme-svg theme-moon" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-                  <path d="M14.8 3.2a8.8 8.8 0 1 0 6 15.3 9.6 9.6 0 0 1-11-11 8.7 8.7 0 0 1 5-4.3Z" fill="currentColor"/>
-                </svg>
-                <svg class="theme-svg theme-sun" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-                  <circle cx="12" cy="12" r="4.5" fill="currentColor"/>
-                  <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-                    <path d="M12 2.5v3.1"/>
-                    <path d="M12 18.4v3.1"/>
-                    <path d="M2.5 12h3.1"/>
-                    <path d="M18.4 12h3.1"/>
-                    <path d="m5.3 5.3 2.2 2.2"/>
-                    <path d="m16.5 16.5 2.2 2.2"/>
-                    <path d="m18.7 5.3-2.2 2.2"/>
-                    <path d="m7.5 16.5-2.2 2.2"/>
-                  </g>
-                </svg>
-              </span>
+            <button class="about-pill-btn" id="aboutPillBtn" type="button" aria-label="About Funalytics">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="8" cy="5" r="1.2"/><rect x="7" y="8" width="2" height="5" rx="1"/><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>
+              About
             </button>
           </header>
 
@@ -185,29 +169,48 @@
               </article>
             </div>
 
-            <div class="chart-panel">
-              <div class="section-head">
-                <div>
-                  <p class="eyebrow">Performance Analytics</p>
-                  <h3>Top fund vs category average</h3>
-                </div>
-                <div class="time-filter" role="group" aria-label="Time filter">
-                  <button data-period="1M">1M</button>
-                  <button data-period="3M">3M</button>
-                  <button data-period="6M">6M</button>
-                  <button class="active" data-period="1Y">1Y</button>
-                </div>
+            <div class="planner-promo-card qa-card" data-qa="planner" role="button" tabindex="0" aria-label="Open Investment Planner">
+              <div>
+                <p class="eyebrow">Plan your investment</p>
+                <h3>Build wealth with <span>Investment Planner</span></h3>
+                <p class="muted">Get a personalized portfolio recommendation based on your goals and time horizon.</p>
+                <button class="planner-promo-action" type="button">Start Planning <span aria-hidden="true">&#8594;</span></button>
               </div>
-              <div id="lineChart" class="line-chart"></div>
-              <div id="performanceTooltip" class="chart-tooltip" hidden></div>
             </div>
 
-            <div class="insight-card primary">
-              <p class="eyebrow">AI-style summary</p>
-              <h3 id="dashboardInsight">Generating insight...</h3>
+            <div class="quick-actions-section">
+              <p class="eyebrow quick-actions-label">Quick Actions</p>
+              <div class="quick-actions-grid">
+                <button class="qa-card" data-qa="sip" type="button" aria-label="Open SIP Planner">
+                  <span class="qa-icon qa-icon--sip" aria-hidden="true"></span>
+                  <strong class="qa-title">SIP Planner</strong>
+                  <span class="qa-desc">Plan your SIP and track returns</span>
+                  <span class="qa-arrow" aria-hidden="true">&#8250;</span>
+                </button>
+                <button class="qa-card" data-qa="saved-plans" type="button" aria-label="Open Saved Plans">
+                  <span class="qa-icon qa-icon--saved" aria-hidden="true"></span>
+                  <strong class="qa-title">Saved Plans</strong>
+                  <span class="qa-desc">View your saved portfolio plan</span>
+                  <span class="qa-arrow" aria-hidden="true">&#8250;</span>
+                </button>
+                <button class="qa-card" data-qa="compare" type="button" aria-label="Compare Funds">
+                  <span class="qa-icon qa-icon--compare" aria-hidden="true"></span>
+                  <strong class="qa-title">Compare Funds</strong>
+                  <span class="qa-desc">Compare multiple funds</span>
+                  <span class="qa-arrow" aria-hidden="true">&#8250;</span>
+                </button>
+                <button class="qa-card" data-qa="watchlist" type="button" aria-label="View Watchlist">
+                  <span class="qa-icon qa-icon--watchlist" aria-hidden="true"></span>
+                  <strong class="qa-title">Watchlist</strong>
+                  <span class="qa-desc">Track your favourite funds</span>
+                  <span class="qa-arrow" aria-hidden="true">&#8250;</span>
+                </button>
+              </div>
             </div>
-
-          </section>
+            <div id="lineChart" hidden aria-hidden="true"></div>
+            <div id="performanceTooltip" hidden aria-hidden="true"></div>
+            <p id="dashboardInsight" style="display:none;" aria-hidden="true"></p>
+</section>
 
           <section class="screen" id="screen-funds" aria-label="Fund list">
             <div class="search-row">
@@ -244,6 +247,26 @@
               </div>
               <div id="analysisChart" class="bar-chart"></div>
             </div>
+            <div class="chart-panel full-span" id="insightsPerformanceChart">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Performance Analytics</p>
+                  <h3>Top fund vs category average</h3>
+                </div>
+                <div class="time-filter" role="group" aria-label="Time filter" id="insightsTimeFilter">
+                  <button data-period="1M">1M</button>
+                  <button data-period="3M">3M</button>
+                  <button data-period="6M">6M</button>
+                  <button class="active" data-period="1Y">1Y</button>
+                </div>
+              </div>
+              <div id="insightsLineChart" class="line-chart"></div>
+              <div id="insightsPerformanceTooltip" class="chart-tooltip" hidden></div>
+            </div>
+            <div class="insight-card primary" id="insightsAISummary">
+              <p class="eyebrow">AI-style summary</p>
+              <h3 id="insightsDashboardInsight">Loading category insight...</h3>
+            </div>
           </section>
 
           <section class="screen" id="screen-compare" aria-label="Compare categories">
@@ -268,16 +291,42 @@
             <div id="compareContent" class="compare-grid"></div>
           </section>
 
-          <section class="screen" id="screen-profile" aria-label="Profile">
-            <div class="profile-card">
-              <div class="avatar" aria-hidden="true">
-                <img class="brand-logo brand-logo-dark" src="icons/light-logo.png" alt="" />
-                <img class="brand-logo brand-logo-light" src="icons/dark-logo.png" alt="" />
-              </div>
-              <h2>Funalytics</h2>
-              <p>Funalytics is a smart mutual fund analytics platform that transforms Excel-based data into clear rankings, performance insights, and decision-ready dashboards.</p>
+          <section class="screen" id="screen-profile" aria-label="About Funalytics">
+            <div class="page-header">
+              <button class="page-back-btn" id="aboutBackBtn" type="button" aria-label="Back to dashboard">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 5.5 9 12l6.5 6.5M10 12h9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <h2>About Funalytics</h2>
             </div>
-            <div class="settings-list">
+            <div class="about-page-hero">
+              <img class="about-page-logo about-page-logo--dark" src="assets/brand/funalytics-logo-dark.png" alt="Funalytics" />
+              <img class="about-page-logo about-page-logo--light" src="assets/brand/funalytics-logo-light.png" alt="Funalytics" />
+              <div>
+                <p class="eyebrow">Smart mutual fund dashboard</p>
+                <h3>Analyze, compare, and plan investments with clarity.</h3>
+              </div>
+            </div>
+            <div class="about-section-card">
+              <p class="eyebrow">What is Funalytics</p>
+              <p>Funalytics turns mutual fund data into clean rankings, performance insights, comparison tools, and investment planning flows so decisions feel structured instead of noisy.</p>
+            </div>
+            <div class="about-section-card">
+              <p class="eyebrow">How Funalytics Score Works</p>
+              <div class="about-score-grid">
+                <article><span class="about-icon">R</span><strong>Returns</strong><p>Rewards funds that deliver stronger 1Y, 3Y, and 5Y return profiles.</p></article>
+                <article><span class="about-icon">C</span><strong>Consistency</strong><p>Looks at stability, volatility, and risk-adjusted performance signals.</p></article>
+                <article><span class="about-icon">P</span><strong>Relative Performance</strong><p>Ranks each fund against its own category for a fairer comparison.</p></article>
+              </div>
+            </div>
+            <div class="about-section-card">
+              <p class="eyebrow">Investment Planner</p>
+              <p>The planner uses your monthly amount, time horizon, risk profile, and expected return to estimate projected wealth, contribution value, and a category-wise portfolio allocation.</p>
+            </div>
+            <div class="about-section-card disclaimer-card">
+              <p class="eyebrow">Disclaimer</p>
+              <p>Mutual funds are subject to market risk. Funalytics is an analysis and planning tool, not financial advice. Please review scheme documents and consult a qualified advisor before investing.</p>
+            </div>
+            <div class="settings-list about-settings-list">
               <button class="setting-row" id="profileTheme">
                 <span>Theme</span>
                 <strong id="profileThemeValue">Dark</strong>
@@ -305,6 +354,101 @@
             </div>
             <footer class="credits">Developed by Ameen Khan</footer>
           </section>
+          <section class="screen" id="screen-planner" aria-label="Investment Planner">
+            <div class="planner-hero">
+              <div>
+                <p class="eyebrow">Plan your investment</p>
+                <h2>Investment Planner</h2>
+                <p class="planner-subtext muted">Get a personalized portfolio in seconds</p>
+              </div>
+            </div>
+            <div class="planner-form-card" id="plannerFormCard">
+              <div class="planner-field invest-row">
+                <div class="invest-label-row">
+                  <label class="planner-label" for="plannerAmount">I want to invest</label>
+                  <div class="invest-toggle" role="group" aria-label="Investment type">
+                    <button class="toggle-opt active" id="plannerInvestTypeSip" data-invest-type="sip" type="button">SIP</button>
+                    <button class="toggle-opt" id="plannerInvestTypeLumpsum" data-invest-type="lumpsum" type="button">Lumpsum</button>
+                  </div>
+                </div>
+                <div class="planner-input-wrap"><span class="planner-currency">&#8377;</span><input type="number" id="plannerAmount" class="planner-input" value="5000" min="1000" max="1000000000" step="1000" placeholder="5000" aria-label="Investment amount in rupees"/></div>
+                <span class="invest-sublabel" id="plannerInvestSubLabel">per month via SIP</span>
+              </div>
+        <div class="planner-field"><label class="planner-label" for="plannerYearsButton">For a period of</label><div class="planner-years-control" id="plannerYearsCustom"><button class="planner-years-trigger" id="plannerYearsButton" type="button" aria-expanded="false" aria-controls="plannerYearsMenu"><strong id="plannerYearsLabel">10 Years</strong><i aria-hidden="true"></i></button><div class="planner-years-menu" id="plannerYearsMenu" hidden><button data-years="3" type="button">3 Years</button><button data-years="5" type="button">5 Years</button><button data-years="7" type="button">7 Years</button><button data-years="10" class="active" type="button">10 Years</button><button data-years="15" type="button">15 Years</button><button data-years="20" type="button">20 Years</button></div><select id="plannerYears" class="planner-select planner-select-native" aria-label="Investment period" tabindex="-1"><option value="3">3 Years</option><option value="5">5 Years</option><option value="7">7 Years</option><option value="10" selected>10 Years</option><option value="15">15 Years</option><option value="20">20 Years</option></select></div></div>
+              <div class="planner-field"><label class="planner-label" for="plannerRisk">My risk appetite</label><div class="planner-risk-row" role="group" aria-label="Risk appetite"><button class="risk-btn" data-risk="conservative" type="button">Conservative</button><button class="risk-btn active" data-risk="moderate" type="button">Moderate</button><button class="risk-btn" data-risk="aggressive" type="button">Aggressive</button></div></div>
+              <div class="planner-field"><label class="planner-label" for="plannerReturnSlider">Expected return (p.a.)</label><div class="planner-return-display" id="plannerReturnDisplay">12.5%</div><input type="range" id="plannerReturnSlider" class="planner-slider" min="8" max="25" step="0.5" value="12.5" aria-label="Expected annual return percentage"/><div class="planner-slider-labels"><span>8%</span><span>25%</span></div></div>
+              <div class="planner-field"><label class="planner-label" for="plannerInflationSlider">Inflation rate (p.a.)</label><div class="planner-return-display" id="plannerInflationDisplay">6%</div><input type="range" id="plannerInflationSlider" class="planner-slider" min="4" max="8" step="0.25" value="6" aria-label="Expected inflation rate percentage"/><div class="planner-slider-labels"><span>4%</span><span>8%</span></div></div>
+              <div class="planner-quick-insight" id="plannerQuickInsight" aria-live="polite"><span class="planner-insight-icon" aria-hidden="true">&#9670;</span><span id="plannerInsightText">With &#8377;10.0L per month for 10 years at 12.5%, you can build &#8377;2.3Cr</span></div>
+              <button class="planner-generate-btn" id="plannerGenerateBtn" type="button" aria-label="Generate portfolio plan">Generate Plan <span aria-hidden="true">&#8594;</span></button>
+            </div>
+            <div class="planner-results" id="plannerResults" hidden aria-hidden="true">
+              <div class="planner-result-hero"><div class="planner-result-main"><p class="eyebrow">Projected value</p><strong class="planner-projected-value" id="plannerProjectedValue">&#8377;11.6L</strong><p class="planner-real-value">Inflation-adjusted value: <b id="plannerRealValue">&#8377;6.5L</b></p><p class="muted planner-projected-sub" id="plannerProjectedSub">Est. Returns 12.5% p.a. over 10 years</p></div><div class="planner-result-sip"><p class="eyebrow">Total investment</p><strong class="planner-sip-value" id="plannerSipValue">&#8377;6.0L</strong></div></div>
+              <div class="planner-section-card"><div class="planner-section-head"><p class="eyebrow">Portfolio Allocation</p><span class="risk-badge" id="plannerRiskBadge">Moderate Risk</span></div><div class="planner-alloc-list" id="plannerAllocList"></div></div>
+              <div class="planner-section-card planner-why"><p class="eyebrow">Why this plan</p><ul class="planner-why-list" id="plannerWhyList"><li>Diversified across asset classes</li><li id="plannerWhyRisk">Calibrated to Moderate risk profile</li><li id="plannerWhyDuration">Optimised for 10-year horizon</li></ul></div>
+              <div class="planner-section-card planner-disclaimer-card"><p class="eyebrow">Disclaimer</p><p class="planner-disclaimer">This planner is for education and analysis only. It is not investment advice or a recommendation to purchase any fund.</p></div>
+              <div class="planner-actions planner-actions--single"><button class="planner-action-btn primary" id="plannerViewDetailBtn" type="button">View Detailed Portfolio <span aria-hidden="true">&#8594;</span></button></div>
+            </div>
+          </section>
+
+          <section class="screen" id="screen-saved-plans" aria-label="Saved Portfolios">
+            <div class="page-header saved-plans-header">
+              <button class="page-back-btn" id="savedPlansBackBtn" type="button" aria-label="Back to dashboard">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 5.5 9 12l6.5 6.5M10 12h9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <div>
+                <p class="eyebrow">Dashboard saved portfolios</p>
+                <h2>Saved Plans</h2>
+              </div>
+              <span class="saved-plans-count" id="savedPlansCount">0/10 saved</span>
+            </div>
+            <div class="saved-plans-page-hero">
+              <h3>Your portfolio shelf</h3>
+              <p class="muted" id="savedPlansHint">Save a generated portfolio and it will appear here.</p>
+            </div>
+            <div class="saved-plans-list saved-plans-list--page" id="savedPlansList"></div>
+          </section>
+
+          <section class="screen" id="screen-portfolio" aria-label="Your Portfolio">
+            <div class="page-header">
+              <button class="page-back-btn" id="portfolioBackBtn" type="button" aria-label="Back to planner">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 5.5 9 12l6.5 6.5M10 12h9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <h2>Your Portfolio</h2>
+            </div>
+            <div class="portfolio-summary-card">
+              <p class="eyebrow">Projected value</p>
+              <strong id="portfolioProjectedValue">&#8377;32.5L</strong>
+              <div class="portfolio-summary-grid">
+                <span><small>Total Investment</small><b id="portfolioTotalInvestment">&#8377;10.0L</b></span>
+                <span><small>Expected Returns</small><b id="portfolioExpectedReturn">12.5%</b></span>
+                <span><small>Inflation-adjusted</small><b id="portfolioRealValue">&#8377;6.5L</b></span>
+              </div>
+            </div>
+            <div class="portfolio-sip-card">
+              <p class="eyebrow">Estimated Wealth Gain</p>
+              <strong id="portfolioSipValue">&#8377;8,300</strong>
+              <p class="muted">Projected gain over your total monthly contributions.</p>
+            </div>
+            <div class="portfolio-layout-grid">
+              <div class="planner-section-card portfolio-donut-card">
+                <p class="eyebrow">Portfolio Allocation</p>
+                <div class="portfolio-donut" id="portfolioDonut"><span>100%</span></div>
+              </div>
+              <div class="planner-section-card">
+                <p class="eyebrow">Category Breakdown</p>
+                <div id="portfolioAllocList" class="planner-alloc-list"></div>
+              </div>
+            </div>
+            <div class="planner-section-card">
+              <p class="eyebrow">Fund-level Breakdown</p>
+              <div id="portfolioFundList" class="planner-fund-list"></div>
+            </div>
+            <div class="planner-section-card planner-disclaimer-card"><p class="eyebrow">Disclaimer</p><p class="planner-disclaimer">This portfolio view is for education and analysis only. It is not investment advice or a recommendation to purchase any fund.</p></div>
+            <div class="planner-actions">
+              <button class="planner-action-btn secondary" id="portfolioAdjustBtn" type="button">Adjust Plan</button>
+              <button class="planner-action-btn primary" id="portfolioSaveBtn" type="button">Save Plan</button>
+            </div>
+          </section>
 
         </div>
         <button class="update-banner" id="updateBanner" type="button" hidden aria-label="Refresh to latest version">
@@ -315,7 +459,7 @@
           <button data-tab="funds"><span>&#8776;</span>Rankings</button>
           <button data-tab="insights"><span>&#10022;</span>Analysis</button>
           <button data-tab="compare"><span>&#8644;</span>Compare</button>
-          <button data-tab="profile"><span>&#9675;</span>About</button>
+          <button data-tab="planner"><span>&#9788;</span>Planner</button>
         </nav>
       </section>
     </main>
@@ -388,16 +532,22 @@
         if (skeleton) skeleton.classList.add("hide");
       }, 1200);
     </script>
-  <script defer src="mockData/excel-backup.js?v=live-nav-v37"></script>
-  <script defer src="mockData/live-nav-snapshot.js?v=live-nav-v37"></script>
-  <script defer src="constants/schema.js?v=live-nav-v37"></script>
-  <script defer src="utils/cache.js?v=live-nav-v37"></script>
-  <script defer src="utils/validation.js?v=live-nav-v37"></script>
-  <script defer src="services/calculations.js?v=live-nav-v37"></script>
-  <script defer src="services/apiClients.js?v=live-nav-v37"></script>
-  <script defer src="services/matcher.js?v=live-nav-v37"></script>
-  <script defer src="services/dataMapper.js?v=live-nav-v37"></script>
-  <script defer src="services/dataProvider.js?v=live-nav-v37"></script>
-  <script defer src="src/bootstrap.js?v=live-nav-v37"></script>
+  <script defer src="mockData/excel-backup.js?v=live-nav-v38"></script>
+  <script defer src="mockData/live-nav-snapshot.js?v=live-nav-v38"></script>
+  <script defer src="constants/schema.js?v=live-nav-v38"></script>
+  <script defer src="utils/cache.js?v=live-nav-v38"></script>
+  <script defer src="utils/validation.js?v=live-nav-v38"></script>
+  <script defer src="services/calculations.js?v=live-nav-v38"></script>
+  <script defer src="services/apiClients.js?v=live-nav-v38"></script>
+  <script defer src="services/matcher.js?v=live-nav-v38"></script>
+  <script defer src="services/dataMapper.js?v=live-nav-v38"></script>
+  <script defer src="services/dataProvider.js?v=live-nav-v38"></script>
+<script defer src="src/bootstrap.js?v=live-nav-v86"></script>
   </body>
 </html>
+
+
+
+
+
+

@@ -170,7 +170,7 @@ const ensureHashRoute = () => {
 
 const routeFromHash = () => {
   const raw = String(window.location.hash || "").replace(/^#/, "").trim();
-  return ["dashboard", "funds", "insights", "compare", "profile"].includes(raw) ? raw : "dashboard";
+  return ["dashboard", "funds", "insights", "compare", "planner", "profile", "portfolio", "saved-plans"].includes(raw) ? raw : "dashboard";
 };
 
 const localTodayIso = () => {
@@ -610,7 +610,7 @@ const consistencyBandLabel = (fund) => {
   return "Low";
 };
 const horizonLabel = () => ({ oneYear: "1Y", threeYear: "3Y", fiveYear: "5Y" })[state.horizon];
-const periodCount = () => ({ "1M": 2, "3M": 2, "6M": 3, "1Y": 5 })[state.period] || 5;
+const periodCount = () => ({ "1M": 2, "3M": 3, "6M": 4, "1Y": 5 })[state.period] || 5;
 const datasetLabel = () => state.dataset === "new" ? "Latest dataset" : "Historical dataset";
 const trendTone = (trend) => trend === "Improving" ? "trend-up" : (trend === "Declining" ? "trend-down" : "trend-stable");
 const trendMarkup = (trend) => `<span class="trend-chip ${trendTone(trend)}"><i aria-hidden="true"></i><span>${escapeHtml(trend)}</span></span>`;
@@ -979,7 +979,7 @@ const applyOptionValue = (type, value, direction = 0) => {
   }
   if (type === "period") {
     state.period = value;
-    renderDashboard();
+    renderCurrentView();
     syncControlState();
   }
 };
@@ -1215,8 +1215,7 @@ const isLight = document.body.classList.contains("light");
       const point = pointFor(ring, index);
       return `${point.x.toFixed(1)},${point.y.toFixed(1)}`;
     }).join(" ");
-    return `<polygon points="${points}" fill="none"stroke="${isLight ? 'rgba(15,23,42,0.18)' : 'rgba(255,255,255,0.08)'}"
-opacity="1" stroke-width="${ring === 1 ? 1.1 : 1}"/>`;
+    return `<polygon points="${points}" fill="none" stroke="${isLight ? 'rgba(15,23,42,0.18)' : 'rgba(255,255,255,0.08)'}" opacity="1" stroke-width="${ring === 1 ? 1.1 : 1}"/>`;
   }).join("");
   const axes = dimensions.map((item, index) => {
     const outer = pointFor(1, index);
@@ -1441,7 +1440,16 @@ const closePicker = () => {
   closeGlobalModal();
 };
 
-const tabOrder = ["dashboard", "funds", "insights", "compare", "profile"];
+const tabOrder = ["dashboard", "funds", "insights", "compare", "planner", "profile", "portfolio", "saved-plans"];
+
+const navigateToTab = (tab) => {
+  const btn = document.querySelector(`.bottom-nav [data-tab="${tab}"]`);
+  if (btn) {
+    btn.click();
+  } else {
+    switchTab(tab, 0);
+  }
+};
 
 const syncTabUi = () => {
   document.querySelectorAll(".bottom-nav button").forEach((item) => item.classList.toggle("active", item.dataset.tab === state.tab));
@@ -1516,7 +1524,9 @@ const renderPicker = () => {
 
 const renderChrome = () => {
   const showControls = ["dashboard", "funds", "insights", "compare"].includes(state.tab);
+  const isSubpage = ["profile", "portfolio", "saved-plans"].includes(state.tab);
   document.querySelector(".controls-strip").classList.toggle("hidden", !showControls);
+  document.body.classList.toggle("subpage-active", isSubpage);
 };
 
 const syncOverlayState = () => {};
@@ -1560,6 +1570,7 @@ const bindSegmentedPillTracking = () => {
 };
 
 const syncControlState = () => {
+  syncTabUi();
   document.querySelectorAll("[data-horizon]").forEach((button) => {
     button.classList.toggle("active", button.dataset.horizon === state.horizon);
   });
@@ -1676,45 +1687,70 @@ const renderPerformanceChart = (id, fund, funds, category = null) => {
   if (!target || !fund) return;
   const fundHistory = chartHistoryFor(fund);
   const categoryData = Array.isArray(category) ? category : categorySeries(funds);
-  const labels = [...new Set([...fundHistory.map((point) => point.label), ...categoryData.map((point) => point.label)])];
-  const selectedValues = labels.map((label) => fundHistory.find((point) => point.label === label)?.value ?? null);
-  const categoryValues = labels.map((label) => categoryData.find((point) => point.label === label)?.avg ?? null);
+  const slotCount = Math.max(2, Math.min(periodCount(), Math.max(fundHistory.length, categoryData.length)));
+  const fundSlots = Array(Math.max(0, slotCount - fundHistory.length)).fill(null).concat(fundHistory).slice(-slotCount);
+  const categorySlots = Array(Math.max(0, slotCount - categoryData.length)).fill(null).concat(categoryData).slice(-slotCount);
+  const labels = Array.from({ length: slotCount }, (_, index) => fundSlots[index]?.label || categorySlots[index]?.label || `P${index + 1}`);
+  const selectedValues = fundSlots.map((point) => point?.value ?? null);
+  const categoryValues = categorySlots.map((point) => point?.avg ?? null);
+  const tooltip = id === "insightsLineChart" ? $("insightsPerformanceTooltip") : $("performanceTooltip");
   renderMultiLineSvg(target, [
-    { name: "Top fund", values: selectedValues, color: "#0F766E" },
-    { name: "Category average", values: categoryValues, color: "#2563EB" }
-  ], labels, $("performanceTooltip"));
+    { name: "Top fund", values: selectedValues, color: "#0D9488" },
+    { name: "Category average", values: categoryValues, color: "#2F73FF" }
+  ], labels, tooltip);
 };
 
 const renderMultiLineSvg = (target, series, labels, tooltipEl = null) => {
-  const width = 360;
-  const height = 220;
-  const padding = 34;
+  const width = 390;
+  const height = 238;
+  const padding = { top: 24, right: 18, bottom: 36, left: 40 };
+  target.classList.add("performance-chart");
+  target.classList.add("chart-updating");
   const values = series.flatMap((item) => item.values).filter((value) => value !== null && value !== undefined);
   if (!values.length) {
+    target.classList.remove("chart-updating");
     target.innerHTML = `<div class="empty-chart">Performance history is unavailable for the selected view.</div>`;
     return;
   }
-  const min = Math.min(...values, 0) - 2;
-  const max = Math.max(...values, 1) + 2;
+  const rawMin = Math.min(...values, 0);
+  const rawMax = Math.max(...values, 1);
+  const spread = Math.max(4, rawMax - rawMin);
+  const min = Math.floor((rawMin - spread * 0.18) / 2) * 2;
+  const max = Math.ceil((rawMax + spread * 0.18) / 2) * 2;
   const denom = max - min || 1;
-  const x = (index) => padding + index * ((width - padding * 2) / Math.max(1, labels.length - 1));
-  const y = (value) => height - padding - ((value - min) / denom) * (height - padding * 2);
-  const grid = [min, (min + max) / 2, max].map((tick) => `<g><line x1="${padding}" y1="${y(tick)}" x2="${width - padding}" y2="${y(tick)}" stroke="currentColor" opacity=".08"/><text x="6" y="${y(tick) + 4}" fill="currentColor" opacity=".55" font-size="9">${tick.toFixed(0)}%</text></g>`).join("");
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const x = (index) => padding.left + index * (plotWidth / Math.max(1, labels.length - 1));
+  const y = (value) => padding.top + (1 - ((value - min) / denom)) * plotHeight;
+  const pathFor = (valuesList) => {
+    let d = "";
+    valuesList.forEach((value, index) => {
+      if (value === null || value === undefined) return;
+      const command = d ? "L" : "M";
+      d += `${command}${x(index).toFixed(2)} ${y(value).toFixed(2)} `;
+    });
+    return d.trim();
+  };
+  const ticks = [max, (min + max) / 2, min];
+  const grid = ticks.map((tick) => `<g class="chart-grid-row"><line class="chart-grid-line" x1="${padding.left}" y1="${y(tick)}" x2="${width - padding.right}" y2="${y(tick)}"/><text class="chart-axis-label" x="${padding.left - 14}" y="${y(tick) + 4}" text-anchor="end">${tick.toFixed(0)}%</text></g>`).join("");
   const lines = series.map((item) => {
-    const points = item.values.map((value, index) => value === null ? null : `${x(index)},${y(value)}`).filter(Boolean).join(" ");
     const isPrimary = item === series[0];
-    const dots = item.values.map((value, index) => value === null ? "" : `<circle class="chart-point${isPrimary ? " primary" : ""}" data-chart-index="${index}" data-series-name="${escapeHtml(item.name)}" cx="${x(index)}" cy="${y(value)}" r="${isPrimary ? 4.5 : 3.5}" fill="${item.color}"><title>${item.name}: ${value.toFixed(2)}%</title></circle>`).join("");
-    return `<polyline class="chart-line" points="${points}" fill="none" stroke="${item.color}" stroke-width="${isPrimary ? 4 : 2.5}" stroke-linecap="round" stroke-linejoin="round"/>${dots}`;
+    const d = pathFor(item.values);
+    if (!d) return "";
+    const dots = item.values.map((value, index) => value === null ? "" : `<circle class="chart-point${isPrimary ? " primary" : ""}" style="--point-delay:${150 + (index * 34)}ms" data-chart-index="${index}" data-series-name="${escapeHtml(item.name)}" cx="${x(index)}" cy="${y(value)}" r="${isPrimary ? 6.2 : 5.2}" fill="${item.color}"><title>${item.name}: ${value.toFixed(2)}%</title></circle>`).join("");
+    return `<path class="chart-line${isPrimary ? " primary" : ""}" style="--series-index:${isPrimary ? 0 : 1}; --chart-color:${item.color}" d="${d}" fill="none" stroke="${item.color}" stroke-width="${isPrimary ? 4.6 : 4}" stroke-linecap="round" stroke-linejoin="round"/>${dots}`;
   }).join("");
-  const labelsSvg = labels.map((label, index) => `<text x="${x(index)}" y="${height - 8}" text-anchor="middle" fill="currentColor" opacity=".58" font-size="10" font-weight="800">${escapeHtml(label)}</text>`).join("");
-  const guideLine = tooltipEl ? `<line class="chart-guide-line" id="${target.id || "chart"}GuideLine" x1="${x(Math.max(0, labels.length - 1))}" y1="${padding / 2}" x2="${x(Math.max(0, labels.length - 1))}" y2="${height - padding}" stroke="currentColor" opacity=".16" stroke-width="1.2" stroke-dasharray="4 4"/>` : "";
+  const labelsSvg = labels.map((label, index) => `<text class="chart-axis-label chart-x-label" x="${x(index)}" y="${height - 8}" text-anchor="middle">${escapeHtml(label)}</text>`).join("");
+  const guideLine = tooltipEl ? `<line class="chart-guide-line" id="${target.id || "chart"}GuideLine" x1="${x(Math.max(0, labels.length - 1))}" y1="${padding.top}" x2="${x(Math.max(0, labels.length - 1))}" y2="${height - padding.bottom}" stroke-dasharray="4 5"/>` : "";
   const hoverZones = tooltipEl ? labels.map((label, index) => {
-    const zoneX = index === 0 ? padding : x(index) - ((width - padding * 2) / Math.max(1, labels.length - 1)) / 2;
-    const zoneWidth = labels.length === 1 ? width - padding * 2 : (width - padding * 2) / Math.max(1, labels.length - 1);
-    return `<rect class="chart-hit" data-chart-index="${index}" x="${zoneX}" y="${padding / 2}" width="${zoneWidth}" height="${height - padding}" fill="transparent"/>`;
+    const step = plotWidth / Math.max(1, labels.length - 1);
+    const zoneX = index === 0 ? padding.left : x(index) - step / 2;
+    const zoneWidth = labels.length === 1 ? plotWidth : step;
+    return `<rect class="chart-hit" data-chart-index="${index}" x="${zoneX}" y="${padding.top}" width="${zoneWidth}" height="${plotHeight}" fill="transparent"/>`;
   }).join("") : "";
   const legendHtml = `<div class="chart-legend">${series.map((item) => `<span class="chart-legend-item" style="color:${item.color}"><i aria-hidden="true"></i><span>${escapeHtml(item.name)}</span></span>`).join("")}</div>`;
-  target.innerHTML = `${legendHtml}<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Top fund versus category average">${grid}${guideLine}${lines}${hoverZones}${labelsSvg}</svg>`;
+  target.innerHTML = `${legendHtml}<svg class="performance-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Top fund versus category average">${grid}${hoverZones}${guideLine}${lines}${labelsSvg}</svg>`;
+  requestAnimationFrame(() => target.classList.remove("chart-updating"));
   if (tooltipEl) {
     const svg = target.querySelector("svg");
     const guide = target.querySelector(".chart-guide-line");
@@ -1741,9 +1777,9 @@ const renderMultiLineSvg = (target, series, labels, tooltipEl = null) => {
     if (svg) {
       const handlePointerAt = (clientX) => {
         const rect = svg.getBoundingClientRect();
-        const relativeX = Math.max(padding, Math.min(width - padding, ((clientX - rect.left) / rect.width) * width));
-        const step = labels.length <= 1 ? 0 : (width - padding * 2) / Math.max(1, labels.length - 1);
-        const index = labels.length <= 1 ? 0 : Math.max(0, Math.min(labels.length - 1, Math.round((relativeX - padding) / step)));
+        const relativeX = Math.max(padding.left, Math.min(width - padding.right, ((clientX - rect.left) / rect.width) * width));
+        const step = labels.length <= 1 ? 0 : plotWidth / Math.max(1, labels.length - 1);
+        const index = labels.length <= 1 ? 0 : Math.max(0, Math.min(labels.length - 1, Math.round((relativeX - padding.left) / step)));
         showTooltip(index);
       };
       svg.addEventListener("pointermove", (event) => handlePointerAt(event.clientX));
@@ -1943,6 +1979,47 @@ const renderInsights = () => {
     if (state.tab !== "insights" || state.category !== summary.category) return;
     renderReturnBarChart("analysisChart", chartFunds, false);
   }, 120);
+
+  const insightsChartTarget = $("insightsLineChart");
+  const insightsTooltip = $("insightsPerformanceTooltip");
+  const insightsSummary = $("insightsDashboardInsight");
+  const insightsTimeFilter = $("insightsTimeFilter");
+  if (insightsChartTarget) {
+    insightsChartTarget.innerHTML = `<div class="empty-chart">Loading performance chart...</div>`;
+    if (insightsSummary) insightsSummary.textContent = `${fund.fundName} is loading category insight...`;
+    const requestedCategory = state.category;
+    const requestedHorizon = state.horizon;
+    const requestedPeriod = state.period;
+    scheduleDeferredRenderJob(`insights-chart:${state.category}|${state.horizon}|${state.period}|${fund.id}`, () => {
+      if (state.tab !== "insights" || state.category !== requestedCategory || state.horizon !== requestedHorizon || state.period !== requestedPeriod) return;
+      const history = historyFor(fund);
+      const categoryAverage = categorySeries(funds);
+      const outperformCount = history.filter((point) => {
+        const label = point.date ? point.date.slice(5) : point.label;
+        const cat = categoryAverage.find((item) => item.label === label);
+        return metricAt(point) !== null && cat && metricAt(point) >= cat.avg;
+      }).length;
+      renderPerformanceChart("insightsLineChart", fund, funds, categoryAverage);
+          if (insightsSummary) {
+        insightsSummary.textContent = `${buildHeadlineInsight(fund, funds)} ${storySentence(fund, funds)} Beat category average in ${outperformCount} of ${history.length} visible periods.`;
+      }
+    }, 140);
+  }
+  if (insightsTimeFilter && !insightsTimeFilter.dataset.wired) {
+    insightsTimeFilter.dataset.wired = "true";
+    insightsTimeFilter.querySelectorAll("[data-period]").forEach((button) => {
+      button.addEventListener("click", () => {
+        insightsTimeFilter.querySelectorAll("[data-period]").forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        state.period = button.dataset.period || state.period;
+        const currentFunds = allCategoryFunds();
+        const currentFund = currentFunds[0] || selectedFund();
+        if (currentFund) {
+          renderPerformanceChart("insightsLineChart", currentFund, currentFunds, categorySeries(currentFunds));
+        }
+      });
+    });
+  }
 };
 
 const renderReturnBarChart = (id, funds, highlightSelected = true) => {
@@ -1952,18 +2029,21 @@ const renderReturnBarChart = (id, funds, highlightSelected = true) => {
     target.innerHTML = `<div class="empty-chart">No comparable funds are available in this category.</div>`;
     return;
   }
-  const width = 360;
-  const height = Math.max(170, funds.length * 34 + 34);
   const values = funds.map((fund) => (fund[state.horizon] || 0) * 100);
   const max = Math.max(1, ...values.map((value) => Math.abs(value)));
   const rows = funds.map((fund, index) => {
     const value = values[index];
-    const barWidth = Math.abs(value / max) * 170;
-    const y = 26 + index * 34;
-    const color = highlightSelected && fund.id === state.selectedFundId ? "#0F766E" : "#60A5FA";
-    return `<text x="12" y="${y + 14}" fill="currentColor" opacity=".72" font-size="10" font-weight="800">${escapeHtml(fund.fundName.slice(0, 24))}</text><rect x="176" y="${y}" width="${barWidth}" height="18" rx="9" fill="${color}" opacity=".9"/><text x="${182 + barWidth}" y="${y + 14}" fill="currentColor" font-size="10" font-weight="900">${value.toFixed(1)}%</text>`;
+    const barWidth = Math.max(3, Math.abs(value / max) * 100);
+    const selected = highlightSelected && fund.id === state.selectedFundId;
+    return `
+      <div class="leadership-row${selected ? " active" : ""}">
+        <span class="leadership-name">${escapeHtml(fund.fundName)}</span>
+        <span class="leadership-track"><i style="width:${barWidth}%"></i></span>
+        <strong>${value.toFixed(1)}%</strong>
+      </div>
+    `;
   }).join("");
-  target.innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Fund return comparison">${rows}</svg>`;
+  target.innerHTML = `<div class="leadership-list" role="img" aria-label="Fund return comparison">${rows}</div>`;
 };
 
 const renderVerticalReturnBarChart = (id, funds) => {
@@ -2087,6 +2167,1250 @@ const renderCompare = () => {
   });
 };
 
+/* Investment planner */
+
+const PLANNER_ALLOCATIONS = {
+  conservative: [
+    { label: "Large Cap Equity Funds", pct: 30, color: "#7B61FF" },
+    { label: "Flexi Cap Equity Funds", pct: 10, color: "#5A4BFF" },
+    { label: "Debt Funds", pct: 35, color: "#00D1B2" },
+    { label: "Gold / Commodity Funds", pct: 15, color: "#FFD166" },
+    { label: "Liquid / Overnight Funds", pct: 10, color: "#4DA3FF" }
+  ],
+  moderate: [
+    { label: "Large Cap Equity Funds", pct: 40, color: "#7B61FF" },
+    { label: "Flexi Cap Equity Funds", pct: 20, color: "#5A4BFF" },
+    { label: "Mid Cap Equity Funds", pct: 15, color: "#00D1B2" },
+    { label: "Small Cap Equity Funds", pct: 10, color: "#00E5A8" },
+    { label: "Debt Funds", pct: 10, color: "#FFD166" },
+    { label: "Gold / Commodity Funds", pct: 5, color: "#4DA3FF" }
+  ],
+  aggressive: [
+    { label: "Large Cap Equity Funds", pct: 25, color: "#7B61FF" },
+    { label: "Flexi Cap Equity Funds", pct: 20, color: "#5A4BFF" },
+    { label: "Mid Cap Equity Funds", pct: 25, color: "#00D1B2" },
+    { label: "Small Cap Equity Funds", pct: 20, color: "#00E5A8" },
+    { label: "Sectoral / Thematic Funds", pct: 10, color: "#FF6B6B" }
+  ]
+};
+
+const PLANNER_FUND_RECS = {
+  "Large Cap Equity Funds": ["ICICI Prudential Large Cap Fund (G)", "Nippon India Large Cap Fund (G)"],
+  "Flexi Cap Equity Funds": ["Parag Parikh Flexi Cap Fund (G)", "HDFC Flexi Cap Fund (G)"],
+  "Mid Cap Equity Funds": ["Nippon India Growth Fund (G)", "Kotak Emerging Equity Fund (G)"],
+  "Small Cap Equity Funds": ["Bandhan Small Cap Fund (G)", "Nippon India Small Cap Fund (G)"],
+  "Debt Funds": ["HDFC Short Term Debt Fund (G)", "Axis Short Duration Fund (G)"],
+  "Gold / Commodity Funds": ["Nippon India Gold Savings Fund (G)", "SBI Gold Fund (G)"]
+};
+
+const PLANNER_CATEGORY_MATCHES = {
+  "Large Cap Equity Funds": ["large cap fund"],
+  "Flexi Cap Equity Funds": ["flexi cap fund"],
+  "Mid Cap Equity Funds": ["mid cap fund"],
+  "Small Cap Equity Funds": ["small cap fund"],
+  "Debt Funds": ["corporate bond fund", "dynamic bond", "short duration fund", "credit risk fund", "banking and psu fund", "debt fund"],
+  "Gold / Commodity Funds": ["gold fund", "commodity fund"],
+  "Liquid / Overnight Funds": ["liquid fund", "overnight fund"],
+  "Sectoral / Thematic Funds": ["sectoral", "thematic"]
+};
+
+const plannerState = {
+  amount: 5000,
+  investType: "sip",
+  goalText: "",
+  targetAmount: null,
+  years: 10,
+  risk: "moderate",
+  returnRate: 12.5,
+  inflationRate: 6,
+  resultsVisible: false
+};
+
+const formatIndianCurrency = (value) => {
+  const amount = Math.max(0, Number(value) || 0);
+  if (amount >= 10000000) return `\u20B9${(amount / 10000000).toFixed(1)}Cr`;
+  if (amount >= 100000) return `\u20B9${(amount / 100000).toFixed(1)}L`;
+  if (amount >= 1000) return `\u20B9${(amount / 1000).toFixed(0)}K`;
+  return `\u20B9${Math.round(amount).toLocaleString("en-IN")}`;
+};
+
+const formatExactRupees = (value) => `\u20B9${Math.max(0, Math.round(Number(value) || 0)).toLocaleString("en-IN")}`;
+
+const roundPlannerDisplayAmount = (value) => Math.round((Number(value) || 0) / 100) * 100;
+
+const roundedPlannerAllocations = (allocations = [], totalAmount = plannerState.amount) => {
+  const rows = (allocations || []).filter(Boolean);
+  if (!rows.length) return [];
+  const displayTotal = roundPlannerDisplayAmount(totalAmount);
+  let running = 0;
+  return rows.map((item, index) => {
+    const remaining = Math.max(0, displayTotal - running);
+    const displayAmount = index === rows.length - 1
+      ? remaining
+      : Math.min(roundPlannerDisplayAmount(item.amount), remaining);
+    running += displayAmount;
+    return { ...item, displayAmount };
+  });
+};
+
+const roundedPlannerFundEntries = (funds = [], categoryDisplayAmount = 0) => {
+  const rows = (funds || []).filter(Boolean);
+  if (!rows.length) return [];
+  let running = 0;
+  return rows.map((entry, index) => {
+    const remaining = Math.max(0, categoryDisplayAmount - running);
+    const displayAmount = index === rows.length - 1
+      ? remaining
+      : Math.min(roundPlannerDisplayAmount(entry.amount), remaining);
+    running += displayAmount;
+    return { ...entry, displayAmount };
+  });
+};
+
+const calcProjectedValue = (principal, annualRate, years) => {
+  const rate = annualRate / 100;
+  return Math.round(principal * Math.pow(1 + rate, years));
+};
+
+const calcSipFutureValue = (monthlyAmount, annualRate, years) => {
+  const rate = annualRate / (100 * 12);
+  const months = years * 12;
+  if (!months) return 0;
+  if (rate === 0) return Math.round(monthlyAmount * months);
+  return Math.round(monthlyAmount * ((Math.pow(1 + rate, months) - 1) / rate) * (1 + rate));
+};
+
+const calcMonthlyFV = (futureValue, annualRate, years) => {
+  const rate = annualRate / (100 * 12);
+  const months = years * 12;
+  if (!months) return 0;
+  if (rate === 0) return Math.round(futureValue / months);
+  return Math.round((futureValue * rate) / (Math.pow(1 + rate, months) - 1));
+};
+
+const plannerRiskLabel = () => `${plannerState.risk.charAt(0).toUpperCase()}${plannerState.risk.slice(1)}`;
+
+const plannerInvestAmount = () => Math.max(0, Number(plannerState.amount) || 0);
+const plannerMonthlySip = () => (plannerState.investType === "sip" ? plannerInvestAmount() : 0);
+const plannerLumpsumAmount = () => (plannerState.investType === "lumpsum" ? plannerInvestAmount() : 0);
+const plannerAmountSuffix = () => (plannerState.investType === "sip" ? "/mo" : " once");
+const plannerInvestPhrase = () => (
+  plannerState.investType === "sip"
+    ? `${formatExactRupees(plannerInvestAmount())}/month`
+    : `one-time ${formatExactRupees(plannerInvestAmount())}`
+);
+
+const updatePlannerInsight = () => {
+  const projected = calcSipFutureValue(plannerMonthlySip(), plannerState.returnRate, plannerState.years)
+    + Math.round(plannerLumpsumAmount() * Math.pow(1 + plannerState.returnRate / 100, plannerState.years));
+  const realProjected = Math.round(projected / Math.pow(1 + plannerState.inflationRate / 100, plannerState.years));
+  const insight = $("plannerInsightText");
+  if (insight) {
+    insight.textContent = `${plannerInvestPhrase()} for ${plannerState.years} years can build ${formatIndianCurrency(projected)} nominally, or ${formatIndianCurrency(realProjected)} after inflation.`;
+  }
+};
+
+const normalisePlannerText = (value) => String(value || "").toLowerCase().replace(/&/g, "and").replace(/\s+/g, " ").trim();
+
+const plannerCategoryCandidates = (label) => {
+  const liveFunds = appData?.funds || [];
+  const accepted = PLANNER_CATEGORY_MATCHES[label] || [];
+  if (!accepted.length) return [];
+  return liveFunds.filter((fund) => {
+    const category = normalisePlannerText(fund.category);
+    return accepted.some((target) => {
+      const wanted = normalisePlannerText(target);
+      return category === wanted || category.includes(wanted);
+    });
+  });
+};
+
+const bestPlannerFundForCategory = (label) => {
+  const candidates = plannerCategoryCandidates(label);
+  if (!candidates.length) return null;
+  return [...candidates].sort((a, b) => {
+    const scoreDelta = scoreOf(b) - scoreOf(a);
+    if (scoreDelta) return scoreDelta;
+    return (a.rank || 9999) - (b.rank || 9999);
+  })[0] || null;
+};
+
+const findPlannerFund = (label, fallback) => {
+  const matched = bestPlannerFundForCategory(label);
+  return matched?.fundName || fallback || "No matching app fund found";
+};
+
+const findPlannerFundDetail = (label, fallback) => {
+  const matched = bestPlannerFundForCategory(label);
+  return matched || { fundName: fallback || "No matching app fund found", rank: null, dashboardScore: null, threeYear: null, fiveYear: null, trend: "Core", category: label };
+};
+
+const topPlannerFundsForCategory = (label, limit = 2) => plannerCategoryCandidates(label)
+  .sort((a, b) => {
+    const scoreDelta = scoreOf(b) - scoreOf(a);
+    if (scoreDelta) return scoreDelta;
+    return (a.rank || 9999) - (b.rank || 9999);
+  })
+  .slice(0, limit);
+
+const normaliseAllocationAmounts = (items, monthlyAmount) => {
+  const valid = (items || []).filter((item) => Number(item?.pct) > 0);
+  const totalPct = valid.reduce((sum, item) => sum + Number(item.pct || 0), 0);
+  if (!valid.length || !totalPct) return [];
+  const normalised = valid.map((item) => ({
+    ...item,
+    pct: (Number(item.pct || 0) / totalPct) * 100
+  }));
+  let running = 0;
+  return normalised.map((item, index) => {
+    const amount = index === normalised.length - 1
+      ? Math.max(0, monthlyAmount - running)
+      : Math.round((item.pct / 100) * monthlyAmount);
+    running += amount;
+    return {
+      ...item,
+      pct: Number(item.pct.toFixed(1)),
+      amount
+    };
+  });
+};
+
+const parsePlannerMetricNumber = (value) => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/[%x,]/gi, "").trim());
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const plannerParamMetric = (fund, labels = []) => {
+  const wanted = labels.map(normalisePlannerText);
+  const params = [
+    ...(fund?.parameterBreakdown || []),
+    ...((fund?.analysisHistory?.new || []).flatMap((point) => point?.parameters || [])),
+    ...((fund?.analysisHistory?.old || []).flatMap((point) => point?.parameters || []))
+  ];
+  const found = params.find((param) => wanted.some((label) => normalisePlannerText(param?.label).includes(label)));
+  return parsePlannerMetricNumber(found?.value ?? found?.raw ?? found?.score ?? found?.normalized);
+};
+
+const plannerFundMetric = (fund, key) => {
+  if (!fund) return null;
+  const direct = {
+    score: scoreOf(fund),
+    oneYear: typeof fund.oneYear === "number" ? fund.oneYear * 100 : null,
+    threeYear: typeof fund.threeYear === "number" ? fund.threeYear * 100 : null,
+    fiveYear: typeof fund.fiveYear === "number" ? fund.fiveYear * 100 : null,
+    sharpe: parsePlannerMetricNumber(fund.sharpe ?? fund.sharpeRatio),
+    sortino: parsePlannerMetricNumber(fund.sortino ?? fund.sortinoRatio),
+    pe: parsePlannerMetricNumber(fund.pe ?? fund.peRatio ?? fund.priceEarnings ?? fund.priceToEarnings),
+    pb: parsePlannerMetricNumber(fund.pb ?? fund.pbRatio ?? fund.priceBook ?? fund.priceToBook)
+  }[key];
+  if (direct !== null && direct !== undefined && Number.isFinite(direct)) return direct;
+  const fallbackLabels = {
+    sharpe: ["sharpe"],
+    sortino: ["sortino"],
+    pe: ["p/e", "pe ratio", "price to earnings"],
+    pb: ["p/b", "pb ratio", "price to book"]
+  }[key] || [];
+  return plannerParamMetric(fund, fallbackLabels);
+};
+
+const plannerAverage = (items, getter) => {
+  const values = items.map(getter).filter((value) => Number.isFinite(value));
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+};
+
+const plannerCategoryAverages = (label) => {
+  const funds = plannerCategoryCandidates(label);
+  return {
+    funds,
+    score: plannerAverage(funds, (fund) => plannerFundMetric(fund, "score")),
+    oneYear: plannerAverage(funds, (fund) => plannerFundMetric(fund, "oneYear")),
+    threeYear: plannerAverage(funds, (fund) => plannerFundMetric(fund, "threeYear")),
+    fiveYear: plannerAverage(funds, (fund) => plannerFundMetric(fund, "fiveYear")),
+    sharpe: plannerAverage(funds, (fund) => plannerFundMetric(fund, "sharpe")),
+    sortino: plannerAverage(funds, (fund) => plannerFundMetric(fund, "sortino")),
+    pe: plannerAverage(funds, (fund) => plannerFundMetric(fund, "pe")),
+    pb: plannerAverage(funds, (fund) => plannerFundMetric(fund, "pb"))
+  };
+};
+
+const plannerBeatsBy = (value, average, pct) => Number.isFinite(value) && Number.isFinite(average) && average !== 0 && value > average * (1 + pct);
+const plannerDiscountBy = (value, average, pct) => Number.isFinite(value) && Number.isFinite(average) && average > 0 && value < average * (1 - pct);
+
+const plannerWhyTag = (fund, label) => {
+  if (!fund) return `A steady fit for the ${label} sleeve`;
+  const averages = plannerCategoryAverages(label);
+  const rank = Number(fund.rank || 0);
+  const sharpe = plannerFundMetric(fund, "sharpe");
+  const pe = plannerFundMetric(fund, "pe");
+  const sortino = plannerFundMetric(fund, "sortino");
+  const fiveYear = plannerFundMetric(fund, "fiveYear");
+  const threeYear = plannerFundMetric(fund, "threeYear");
+  const oneYear = plannerFundMetric(fund, "oneYear");
+  const pb = plannerFundMetric(fund, "pb");
+  if (plannerBeatsBy(sharpe, averages.sharpe, 0.20)) return "Picked for stronger risk-adjusted returns";
+  if (plannerDiscountBy(pe, averages.pe, 0.15)) return "Adds value exposure without chasing price";
+  if (plannerBeatsBy(sortino, averages.sortino, 0.15)) return "Chosen for better downside control";
+  if (plannerBeatsBy(fiveYear, averages.fiveYear, 0.10)) return "Keeps the long-term engine steady";
+  if (plannerBeatsBy(threeYear, averages.threeYear, 0.10)) return "Brings a reliable three-year track record";
+  if (plannerBeatsBy(oneYear, averages.oneYear, 0.15)) return "Adds recent momentum to the plan";
+  if (plannerDiscountBy(pb, averages.pb, 0.15)) return "Balances growth with reasonable valuation";
+  if (rank === 1) return "Anchors this bucket with top category score";
+  return `Keeps the ${label.replace(" Equity Funds", "").replace(" Funds", "")} sleeve disciplined`;
+};
+
+const splitFundAmounts = (funds, categoryAmount, categoryLabel = "") => {
+  const usable = (funds || []).slice(0, 2);
+  if (!usable.length || !categoryAmount) return [];
+  const weights = usable.length === 1 ? [100] : [60, 40];
+  let running = 0;
+  return usable.map((fund, index) => {
+    const pct = weights[index] || 0;
+    const amount = index === usable.length - 1
+      ? Math.max(0, categoryAmount - running)
+      : Math.round((categoryAmount * pct) / 100);
+    running += amount;
+    return {
+      fund,
+      pct,
+      amount,
+      reason: plannerWhyTag(fund, categoryLabel)
+    };
+  });
+};
+
+const plannerGoalKeywordMap = [
+  ["House Purchase", ["house", "home", "flat", "apartment", "villa", "property", "plot", "ghar", "makaan", "down payment", "booking amount", "construction", "renovation", "home loan"], { isTimebound: true, needsCapitalSafety: true }],
+  ["Education", ["education", "college", "university", "school", "fees", "iit", "iim", "mbbs", "abroad", "ms", "mba", "phd", "masters", "higher studies", "child education", "son college", "daughter college", "foreign university"], { isTimebound: true, needsCapitalSafety: true }],
+  ["Wedding", ["wedding", "marriage", "shaadi", "nikah", "engagement", "honeymoon", "reception", "lehenga", "destination wedding", "daughter wedding"], { isTimebound: true, needsCapitalSafety: true }],
+  ["Vehicle", ["car", "bike", "motorcycle", "ev", "suv", "sedan", "porsche", "bmw", "mercedes", "royal enfield", "tesla", "two wheeler", "four wheeler", "car loan"], { isTimebound: true, needsCapitalSafetyWhenYearsBelow: 5 }],
+  ["Retirement", ["retire", "retirement", "pension", "financial freedom", "fire", "fat fire", "coast fire", "quit job", "passive income", "early retirement", "retire at", "no more 9 to 5"], { isLongterm: true }],
+  ["Travel", ["travel", "trip", "vacation", "bali", "europe", "dubai", "maldives", "thailand", "japan", "london", "paris", "cruise", "world tour", "solo trip"], { isTimebound: true, needsCapitalSafetyWhenYearsBelow: 3, superShortWhenYearsAtMost: 1 }],
+  ["Gadget", ["iphone", "macbook", "laptop", "gaming pc", "ps5", "xbox", "camera", "drone", "ipad", "airpods", "battlestation", "tech setup"], { isTimebound: true, needsCapitalSafetyWhenYearsBelow: 3, superShortWhenYearsAtMost: 2 }],
+  ["Business", ["business", "startup", "franchise", "shop", "office", "seed capital", "own business", "side hustle", "agency", "restaurant", "cafe", "ecommerce"], { isTimebound: true, needsCapitalSafety: true }],
+  ["Emergency", ["emergency", "safety net", "rainy day", "contingency", "job loss", "medical emergency", "cushion", "backup fund"], { needsCapitalSafety: true, isSuperShortTerm: true }],
+  ["Child Future", ["child", "kids", "baby", "son", "daughter", "baccha", "newborn", "child future", "secure child"], { isTimebound: true, longtermWhenYearsAbove: 10 }],
+  ["Parents", ["parents", "mother", "father", "maa", "papa", "family support", "medical parents", "elder care", "old age"], { isTimebound: true, needsCapitalSafety: true }],
+  ["Luxury", ["luxury", "rolex", "designer", "gucci", "jewellery", "gold", "diamond", "branded", "lifestyle upgrade"], { isTimebound: true, needsCapitalSafetyWhenYearsBelow: 5 }],
+  ["General Wealth", ["wealth", "grow", "invest", "corpus", "multiply", "compounding", "beat inflation", "just saving", "no goal", "general", "passive income"], { isFlexible: true }]
+];
+
+const parsePlannerGoalProfile = () => {
+  const rawGoal = String(plannerState.goalText || "").trim() || "wealth creation";
+  const text = normalisePlannerText(rawGoal);
+  const years = Number(plannerState.years) || 10;
+  const flags = { isTimebound: false, isLongterm: false, needsCapitalSafety: false, isFlexible: false, isSuperShortTerm: false };
+  const matchedTypes = [];
+
+  plannerGoalKeywordMap.forEach(([type, keywords, rules]) => {
+    if (!keywords.some((keyword) => text.includes(normalisePlannerText(keyword)))) return;
+    matchedTypes.push(type);
+    if (rules.isTimebound) flags.isTimebound = true;
+    if (rules.isLongterm) flags.isLongterm = true;
+    if (rules.needsCapitalSafety) flags.needsCapitalSafety = true;
+    if (rules.isFlexible) flags.isFlexible = true;
+    if (rules.isSuperShortTerm) flags.isSuperShortTerm = true;
+    if (rules.needsCapitalSafetyWhenYearsBelow && years < rules.needsCapitalSafetyWhenYearsBelow) flags.needsCapitalSafety = true;
+    if (rules.superShortWhenYearsAtMost && years <= rules.superShortWhenYearsAtMost) flags.isSuperShortTerm = true;
+    if (rules.longtermWhenYearsAbove && years > rules.longtermWhenYearsAbove) flags.isLongterm = true;
+  });
+
+  if (!matchedTypes.length) {
+    matchedTypes.push("General Wealth");
+    flags.isFlexible = true;
+  }
+  if (years <= 1) {
+    flags.needsCapitalSafety = true;
+    flags.isSuperShortTerm = true;
+  }
+  if (years <= 3) flags.needsCapitalSafety = true;
+  if (years > 15) flags.isLongterm = true;
+
+  return { rawGoal, detectedType: matchedTypes[0], flags };
+};
+
+const plannerNormalisePctRows = (rows) => {
+  const valid = (rows || []).filter((item) => Number(item?.pct) > 0);
+  const total = valid.reduce((sum, item) => sum + Number(item.pct || 0), 0);
+  if (!valid.length || !total) return [];
+  return valid.map((item) => ({ ...item, pct: (Number(item.pct || 0) / total) * 100 }));
+};
+
+const buildSmartPlannerAllocations = () => {
+  const goalProfile = parsePlannerGoalProfile();
+  const flags = goalProfile.flags;
+  const risk = plannerState.returnRate < 8 ? "conservative" : (plannerState.risk || "moderate");
+  const years = Number(plannerState.years) || 10;
+  const inflation = Number(plannerState.inflationRate) || 6;
+  const expectedReturn = Number(plannerState.returnRate) || 12.5;
+  const base = {
+    conservative: { equity: 30, debt: 55, gold: 15 },
+    moderate: { equity: 60, debt: 30, gold: 10 },
+    aggressive: { equity: 80, debt: 15, gold: 5 }
+  }[risk] || { equity: 60, debt: 30, gold: 10 };
+  const mix = { ...base };
+  const warnings = [];
+  let safetyOverride = false;
+
+  if (flags.needsCapitalSafety) {
+    if (years < 3) {
+      mix.equity = Math.min(mix.equity, 20);
+      mix.debt = 75;
+      mix.gold = 5;
+      safetyOverride = true;
+    } else if (years <= 5) {
+      mix.equity = Math.min(mix.equity, 40);
+      mix.debt = Math.max(mix.debt, 50);
+      safetyOverride = true;
+    } else if (years <= 7) {
+      mix.equity = Math.min(mix.equity, 55);
+      mix.debt = Math.max(mix.debt, 35);
+      safetyOverride = true;
+    }
+  }
+
+  if (flags.isLongterm && years > 10) {
+    const shift = Math.min(10, mix.debt, 90 - mix.equity);
+    mix.equity += shift;
+    mix.debt = Math.max(5, mix.debt - shift);
+  }
+
+  if (flags.isSuperShortTerm) {
+    mix.equity = 10;
+    mix.debt = 85;
+    mix.gold = 5;
+    safetyOverride = true;
+    warnings.push("For goals under 2 years, liquid and ultra-short debt funds are prioritized.");
+  }
+
+  if (!safetyOverride) {
+    if (years < 3) {
+      const shift = Math.min(20, mix.equity);
+      mix.equity -= shift;
+      mix.debt += shift;
+    } else if (years < 5) {
+      const shift = Math.min(10, mix.equity);
+      mix.equity -= shift;
+      mix.debt += shift;
+    } else if (years > 15) {
+      const firstShift = Math.min(10, mix.debt, 90 - mix.equity);
+      mix.equity += firstShift;
+      mix.debt -= firstShift;
+      const secondShift = Math.min(5, mix.debt, 90 - mix.equity);
+      mix.equity += secondShift;
+      mix.debt -= secondShift;
+    } else if (years > 10) {
+      const shift = Math.min(10, mix.debt, 90 - mix.equity);
+      mix.equity += shift;
+      mix.debt -= shift;
+    }
+  }
+
+  let largeCapBoost = 0;
+  if (inflation > 7.5) {
+    const shift = Math.min(5, mix.debt);
+    mix.debt -= shift;
+    mix.gold += shift;
+  } else if (inflation > 6.5) {
+    const shift = Math.min(3, mix.debt);
+    mix.debt -= shift;
+    mix.gold += shift;
+  } else if (inflation < 4.5) {
+    const shift = Math.min(3, mix.gold);
+    mix.gold -= shift;
+    mix.equity += shift;
+    largeCapBoost = 3;
+  } else if (inflation < 5.5) {
+    const shift = Math.min(2, mix.gold);
+    mix.gold -= shift;
+    mix.equity += shift;
+    largeCapBoost = 2;
+  }
+
+  const colors = {
+    "Large Cap Equity Funds": "#7B61FF",
+    "Flexi Cap Equity Funds": "#5A4BFF",
+    "Mid Cap Equity Funds": "#00D1B2",
+    "Small Cap Equity Funds": "#00E5A8",
+    "Sectoral / Thematic Funds": "#FF6B6B",
+    "Debt Funds": "#FFD166",
+    "Gold / Commodity Funds": "#4DA3FF"
+  };
+
+  const subProfile = expectedReturn < 8 ? "conservative" : risk;
+  const baseSub = {
+    conservative: { large: 55, flexi: 30, mid: 15, small: 0, thematic: 0 },
+    moderate: { large: 35, flexi: 25, mid: 25, small: 10, thematic: 5 },
+    aggressive: { large: 20, flexi: 20, mid: 25, small: 20, thematic: 15 }
+  }[subProfile] || { large: 35, flexi: 25, mid: 25, small: 10, thematic: 5 };
+  const sub = { ...baseSub, large: baseSub.large + largeCapBoost };
+  if (years > 15) {
+    sub.small += 5;
+    sub.large -= 5;
+  }
+  if (years < 5) {
+    const removedSmall = Math.max(0, sub.small);
+    sub.small = 0;
+    sub.flexi += 5;
+    sub.large += Math.max(0, removedSmall - 5);
+  }
+  if (expectedReturn > 14) {
+    sub.small += 5;
+    sub.mid += 5;
+    sub.large -= 10;
+  } else if (expectedReturn > 12) {
+    sub.mid += 5;
+    sub.large -= 5;
+  } else if (expectedReturn < 10) {
+    sub.small = 0;
+    sub.mid = Math.max(0, sub.mid - 5);
+    sub.large += 5;
+  }
+  if (flags.needsCapitalSafety && years < 5) sub.small = 0;
+  if (flags.needsCapitalSafety && years < 3) sub.mid = 0;
+
+  const normalizedSub = plannerNormalisePctRows([
+    { key: "large", pct: Math.max(0, sub.large) },
+    { key: "flexi", pct: Math.max(0, sub.flexi) },
+    { key: "mid", pct: Math.max(0, sub.mid) },
+    { key: "small", pct: Math.max(0, sub.small) },
+    { key: "thematic", pct: Math.max(0, sub.thematic) }
+  ]).reduce((acc, item) => ({ ...acc, [item.key]: item.pct }), {});
+  const normalizedMix = plannerNormalisePctRows([
+    { key: "equity", pct: Math.max(0, mix.equity) },
+    { key: "debt", pct: Math.max(0, mix.debt) },
+    { key: "gold", pct: Math.max(0, mix.gold) }
+  ]).reduce((acc, item) => ({ ...acc, [item.key]: item.pct }), {});
+
+  const equity = normalizedMix.equity || 0;
+  const desired = [
+    { label: "Large Cap Equity Funds", pct: equity * ((normalizedSub.large || 0) / 100), color: colors["Large Cap Equity Funds"], type: "equity" },
+    { label: "Flexi Cap Equity Funds", pct: equity * ((normalizedSub.flexi || 0) / 100), color: colors["Flexi Cap Equity Funds"], type: "equity" },
+    { label: "Mid Cap Equity Funds", pct: equity * ((normalizedSub.mid || 0) / 100), color: colors["Mid Cap Equity Funds"], type: "equity" },
+    { label: "Small Cap Equity Funds", pct: equity * ((normalizedSub.small || 0) / 100), color: colors["Small Cap Equity Funds"], type: "equity" },
+    { label: "Sectoral / Thematic Funds", pct: equity * ((normalizedSub.thematic || 0) / 100), color: colors["Sectoral / Thematic Funds"], type: "equity" },
+    { label: flags.isSuperShortTerm ? "Liquid / Overnight Funds" : "Debt Funds", pct: normalizedMix.debt || 0, color: colors["Debt Funds"], type: "debt" },
+    { label: "Gold / Commodity Funds", pct: normalizedMix.gold || 0, color: colors["Gold / Commodity Funds"], type: "gold" }
+  ];
+
+  const available = plannerNormalisePctRows(desired.filter((item) => item.pct > 0 && plannerCategoryCandidates(item.label).length > 0));
+  available.goalProfile = goalProfile;
+  available.assetMix = {
+    equity: Number((normalizedMix.equity || 0).toFixed(1)),
+    debt: Number((normalizedMix.debt || 0).toFixed(1)),
+    gold: Number((normalizedMix.gold || 0).toFixed(1))
+  };
+  available.warnings = warnings;
+  return available;
+};
+
+const plannerAllocations = () => {
+  const rawAllocations = buildSmartPlannerAllocations();
+  const allocations = normaliseAllocationAmounts(rawAllocations, plannerState.amount).map((allocation) => {
+    const funds = splitFundAmounts(topPlannerFundsForCategory(allocation.label, 2), allocation.amount, allocation.label);
+    return { ...allocation, funds };
+  });
+  allocations.goalProfile = rawAllocations.goalProfile || parsePlannerGoalProfile();
+  allocations.assetMix = rawAllocations.assetMix || {};
+  allocations.warnings = rawAllocations.warnings || [];
+  return allocations;
+};
+
+const plannerPortfolioProjection = () => {
+  const allocations = plannerAllocations();
+  const years = Number(plannerState.years) || 10;
+  const monthly = plannerMonthlySip();
+  const lumpsum = plannerLumpsumAmount();
+  const targetAmount = null;
+  const sipCorpus = calcSipFutureValue(monthly, plannerState.returnRate, years);
+  const lumpsumCorpus = Math.round(lumpsum * Math.pow(1 + plannerState.returnRate / 100, years));
+  const projected = sipCorpus + lumpsumCorpus;
+  const realReturn = (((1 + plannerState.returnRate / 100) / (1 + plannerState.inflationRate / 100)) - 1) * 100;
+  const realProjected = Math.round(projected / Math.pow(1 + plannerState.inflationRate / 100, years));
+  const totalInvestment = (monthly * years * 12) + lumpsum;
+  const estimatedGain = Math.max(0, projected - totalInvestment);
+  const inflationErosion = Math.max(0, projected - realProjected);
+  const inflationErosionPct = projected ? (inflationErosion / projected) * 100 : 0;
+  const sipSharePct = projected ? (sipCorpus / projected) * 100 : 0;
+  const lumpsumSharePct = projected ? (lumpsumCorpus / projected) * 100 : 0;
+  const rate = plannerState.returnRate / 100 / 12;
+  const months = years * 12;
+  const annuityFactor = rate === 0 ? months : ((Math.pow(1 + rate, months) - 1) / rate) * (1 + rate);
+  const gap = targetAmount ? targetAmount - projected : null;
+  const additionalSIPNeeded = targetAmount && gap > 0 && annuityFactor
+    ? Math.max(0, Math.ceil(((targetAmount - lumpsumCorpus) / annuityFactor) - monthly))
+    : null;
+  const additionalLumpsumNeeded = targetAmount && gap > 0
+    ? Math.max(0, Math.ceil(gap / Math.pow(1 + plannerState.returnRate / 100, years)))
+    : null;
+  return {
+    projected,
+    sipCorpus,
+    lumpsumCorpus,
+    realProjected,
+    realReturn,
+    totalInvestment,
+    estimatedGain,
+    inflationErosion,
+    inflationErosionPct,
+    sipSharePct,
+    lumpsumSharePct,
+    goalProfile: allocations.goalProfile || parsePlannerGoalProfile(),
+    assetMix: allocations.assetMix || {},
+    gapAnalysis: {
+      hasTarget: Boolean(targetAmount),
+      targetAmount,
+      gap,
+      onTrack: targetAmount ? gap <= 0 : null,
+      yearsAhead: null,
+      additionalSIPNeeded,
+      additionalLumpsumNeeded,
+      message: targetAmount
+        ? (gap <= 0
+          ? `You're on track for ${formatIndianCurrency(targetAmount)} with this plan.`
+          : `You're ${formatIndianCurrency(gap)} short. Add about ${formatExactRupees(additionalSIPNeeded)}/month or ${formatIndianCurrency(additionalLumpsumNeeded)} today.`)
+        : ""
+    },
+    warnings: [
+      ...(allocations.warnings || []),
+      ...(inflationErosionPct > 30 ? [`Inflation is eating ${inflationErosionPct.toFixed(0)}% of nominal returns.`] : [])
+    ],
+    allocations
+  };
+};
+
+const plannerFlatFundEntries = (allocations = []) => allocations.flatMap((category) => (
+  (category.funds || []).map((entry) => ({ ...entry, category }))
+));
+
+const buildPlannerPlanExplanation = (projection = plannerPortfolioProjection()) => {
+  const { projected, realProjected, realReturn, totalInvestment, estimatedGain, allocations, gapAnalysis, goalProfile } = projection;
+  const displayAllocations = roundedPlannerAllocations(allocations);
+  const displayAmountFor = (item) => displayAllocations.find((row) => row.label === item?.label)?.displayAmount ?? item?.amount ?? 0;
+  const topCategory = [...allocations].sort((a, b) => b.amount - a.amount)[0];
+  const flatFunds = plannerFlatFundEntries(allocations);
+  const topFundEntry = flatFunds
+    .slice()
+    .sort((a, b) => scoreOf(b.fund) - scoreOf(a.fund))[0];
+  const riskLabel = plannerRiskLabel().toLowerCase();
+  const topCategoryName = topCategory?.label?.replace(" Equity Funds", "").replace(" Funds", "") || "core categories";
+  const topFundName = topFundEntry?.fund?.fundName || "the highest-scored fund";
+  const topFundReason = topFundEntry?.reason || "top rated in its category";
+  const gold = allocations.find((item) => normalisePlannerText(item.label).includes("gold"));
+  const debt = allocations.find((item) => normalisePlannerText(item.label).includes("debt"));
+  const midSmall = allocations.filter((item) => /mid cap|small cap/i.test(item.label));
+  const midSmallPct = midSmall.reduce((sum, item) => sum + Number(item.pct || 0), 0);
+
+  const journey = plannerState.investType === "sip"
+    ? `Every month, ${formatExactRupees(plannerInvestAmount())} is split across ${allocations.length} sleeves`
+    : `Your one-time ${formatIndianCurrency(plannerInvestAmount())} starts working across ${allocations.length} sleeves`;
+  const sentences = [
+    `${journey}, with ${topCategoryName} carrying the biggest role at ${topCategory?.pct || 0}% (${formatExactRupees(displayAmountFor(topCategory))}${plannerAmountSuffix()}) for this ${riskLabel} ${plannerState.years}-year journey.`,
+    `If the plan compounds at ${plannerState.returnRate}% p.a., it can grow to ${formatIndianCurrency(projected)}, while today's-money value is closer to ${formatIndianCurrency(realProjected)} after ${plannerState.inflationRate}% inflation.`
+  ];
+
+  if (gapAnalysis?.hasTarget && gapAnalysis.gap > 0) {
+    sentences.push(`${gapAnalysis.message}`);
+  } else if (plannerState.investType === "lumpsum") {
+    sentences.push(`${topFundName} is the lead character inside the fund mix because it ${topFundReason.toLowerCase()}, helping the upfront money stay focused.`);
+  } else if (plannerState.inflationRate > 6.5 && gold) {
+    sentences.push(`Because inflation is running high, gold gets ${gold.pct}% (${formatExactRupees(displayAmountFor(gold))}${plannerAmountSuffix()}) as the shock absorber while ${topFundName} keeps the growth side moving.`);
+  } else if (plannerState.years < 5 && debt) {
+    sentences.push(`Since the runway is short, debt gets ${debt.pct}% (${formatExactRupees(displayAmountFor(debt))}${plannerAmountSuffix()}) so the plan is not forced to depend only on market timing.`);
+  } else if (plannerState.years > 15 && midSmallPct > 0) {
+    sentences.push(`The ${plannerState.years}-year runway gives mid/small caps room to breathe, so ${midSmallPct.toFixed(1)}% goes there while ${topFundName} anchors the selected funds.`);
+  } else if (plannerState.risk === "conservative" && plannerState.years > 10) {
+    sentences.push(`The conservative mix protects capital, but with ${plannerState.years} years available, the lower equity weight can reduce upside versus a moderate plan.`);
+  } else if (realReturn < 4) {
+    sentences.push(`Your real return is only ${realReturn.toFixed(1)}% after inflation, so the plan leans on stronger category leaders like ${topFundName}.`);
+  } else {
+    sentences.push(`${topFundName} leads the selected funds because it ${topFundReason.toLowerCase()}, and the plan estimates ${formatIndianCurrency(estimatedGain)} of wealth creation over time.`);
+  }
+
+  return sentences.slice(0, 3);
+};
+
+const SAVED_PORTFOLIOS_KEY = "funalytics-planner-saved-portfolios-v1";
+const LEGACY_SAVED_PORTFOLIO_KEY = "funalytics-planner-saved-plan";
+
+const safeJsonParse = (value, fallback = null) => {
+  try {
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const savedPortfolioDefaultName = () => `${plannerRiskLabel()} ${plannerState.investType === "sip" ? "SIP" : "Lumpsum"} - ${plannerState.years}Y`;
+
+const currentPlannerSavedSnapshot = (name) => {
+  const projection = plannerPortfolioProjection();
+  const displayAllocations = roundedPlannerAllocations(projection.allocations);
+  const topFund = plannerFlatFundEntries(projection.allocations)
+    .slice()
+    .sort((a, b) => scoreOf(b.fund) - scoreOf(a.fund))[0];
+  return {
+    id: `folio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name: String(name || savedPortfolioDefaultName()).trim() || savedPortfolioDefaultName(),
+    savedAt: new Date().toISOString(),
+    state: {
+      amount: plannerState.amount,
+      investType: plannerState.investType,
+      years: plannerState.years,
+      risk: plannerState.risk,
+      returnRate: plannerState.returnRate,
+      inflationRate: plannerState.inflationRate
+    },
+    summary: {
+      projected: projection.projected,
+      realProjected: projection.realProjected,
+      totalInvestment: projection.totalInvestment,
+      estimatedGain: projection.estimatedGain,
+      investPhrase: plannerInvestPhrase(),
+      riskLabel: plannerRiskLabel(),
+      allocationCount: displayAllocations.length,
+      topFundName: topFund?.fund?.fundName || ""
+    }
+  };
+};
+
+const normaliseSavedPortfolio = (plan, index = 0) => {
+  if (!plan || typeof plan !== "object") return null;
+  const stateSource = plan.state || plan;
+  const amount = Number(stateSource.amount);
+  const years = Number(stateSource.years);
+  const returnRate = Number(stateSource.returnRate);
+  const inflationRate = Number(stateSource.inflationRate);
+  return {
+    id: plan.id || `legacy-${index}-${Number(new Date(plan.savedAt || Date.now())) || Date.now()}`,
+    name: String(plan.name || `Saved Portfolio ${index + 1}`).trim(),
+    savedAt: plan.savedAt || new Date().toISOString(),
+    state: {
+      amount: Number.isFinite(amount) && amount > 0 ? amount : 5000,
+      investType: stateSource.investType === "lumpsum" ? "lumpsum" : "sip",
+      years: Number.isFinite(years) && years > 0 ? years : 10,
+      risk: ["conservative", "moderate", "aggressive"].includes(stateSource.risk) ? stateSource.risk : "moderate",
+      returnRate: Number.isFinite(returnRate) ? returnRate : 12.5,
+      inflationRate: Number.isFinite(inflationRate) ? inflationRate : 6
+    },
+    summary: plan.summary || {}
+  };
+};
+
+const readSavedPortfolios = () => {
+  const current = safeJsonParse(localStorage.getItem(SAVED_PORTFOLIOS_KEY), []);
+  const plans = Array.isArray(current) ? current.map(normaliseSavedPortfolio).filter(Boolean) : [];
+  const legacy = safeJsonParse(localStorage.getItem(LEGACY_SAVED_PORTFOLIO_KEY), null);
+  if (legacy && !plans.some((plan) => plan.id === "legacy-portfolio")) {
+    const migrated = normaliseSavedPortfolio({ ...legacy, id: "legacy-portfolio", name: "Saved Portfolio" }, plans.length);
+    if (migrated) {
+      plans.push(migrated);
+      localStorage.setItem(SAVED_PORTFOLIOS_KEY, JSON.stringify(plans));
+    }
+    localStorage.removeItem(LEGACY_SAVED_PORTFOLIO_KEY);
+  }
+  return plans.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+};
+
+const writeSavedPortfolios = (plans) => {
+  localStorage.setItem(SAVED_PORTFOLIOS_KEY, JSON.stringify((plans || []).map(normaliseSavedPortfolio).filter(Boolean)));
+};
+
+const bindSavedPortfolioActions = (root = document) => {
+  root.querySelectorAll("[data-open-saved-plan]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const plan = readSavedPortfolios().find((item) => item.id === button.dataset.openSavedPlan);
+      applySavedPortfolio(plan);
+    });
+  });
+  root.querySelectorAll("[data-delete-saved-plan]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = readSavedPortfolios().filter((item) => item.id !== button.dataset.deleteSavedPlan);
+      writeSavedPortfolios(next);
+      if (state.tab === "saved-plans") {
+        renderSavedPlans();
+      } else {
+        showSavedPortfoliosModal();
+      }
+    });
+  });
+};
+
+const applySavedPortfolio = (plan) => {
+  const saved = normaliseSavedPortfolio(plan);
+  if (!saved) return;
+  plannerState.amount = Number(saved.state.amount) || 5000;
+  plannerState.investType = saved.state.investType === "lumpsum" ? "lumpsum" : "sip";
+  plannerState.years = Number(saved.state.years) || 10;
+  plannerState.risk = saved.state.risk || "moderate";
+  plannerState.returnRate = Number(saved.state.returnRate) || 12.5;
+  plannerState.inflationRate = Number(saved.state.inflationRate) || 6;
+  plannerState.resultsVisible = true;
+  renderPlanner();
+  renderPortfolio();
+  closeGlobalModal();
+  navigateToTab("portfolio");
+};
+
+const savedPortfolioCardMarkup = (plan) => {
+  const saved = normaliseSavedPortfolio(plan);
+  if (!saved) return "";
+  const tempState = { ...plannerState };
+  Object.assign(plannerState, saved.state);
+  const projection = plannerPortfolioProjection();
+  const topFund = saved.summary?.topFundName || plannerFlatFundEntries(projection.allocations)
+    .slice()
+    .sort((a, b) => scoreOf(b.fund) - scoreOf(a.fund))[0]?.fund?.fundName || "Selected fund mix";
+  Object.assign(plannerState, tempState);
+  const savedDate = new Date(saved.savedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  return `<article class="saved-plan-card" data-saved-plan-id="${escapeHtml(saved.id)}">
+    <div class="saved-plan-card__main">
+      <p class="eyebrow">Saved portfolio</p>
+      <h3>${escapeHtml(saved.name)}</h3>
+      <p class="saved-plan-story">${escapeHtml(`${saved.state.investType === "sip" ? formatExactRupees(saved.state.amount) + "/mo" : formatIndianCurrency(saved.state.amount)} gets a ${saved.state.risk} ${saved.state.years}-year route, led by ${topFund}.`)}</p>
+    </div>
+    <div class="saved-plan-card__stats">
+      <span><strong>${escapeHtml(formatIndianCurrency(projection.projected))}</strong><small>Projected</small></span>
+      <span><strong>${escapeHtml(formatIndianCurrency(projection.realProjected))}</strong><small>Today's value</small></span>
+    </div>
+    <div class="saved-plan-card__meta">
+      <span>Saved ${escapeHtml(savedDate)}</span>
+      <span>${escapeHtml(saved.state.risk.replace(/^./, (c) => c.toUpperCase()))} risk</span>
+    </div>
+    <div class="saved-plan-card__actions">
+      <button class="saved-plan-open" data-open-saved-plan="${escapeHtml(saved.id)}" type="button">Open</button>
+      <button class="saved-plan-delete" data-delete-saved-plan="${escapeHtml(saved.id)}" type="button" aria-label="Delete ${escapeHtml(saved.name)}">Delete</button>
+    </div>
+  </article>`;
+};
+
+const showSavedPortfoliosModal = () => {
+  const plans = readSavedPortfolios();
+  const html = `<div class="saved-plans-modal">
+    <p class="eyebrow">Dashboard saved portfolios</p>
+    <h2>Your Saved Plans</h2>
+    <p class="story-copy">${plans.length ? "Pick up any plan exactly where you left it, or keep separate versions for different goals." : "No saved portfolios yet. Generate a plan, save it with a name, and it will live here."}</p>
+    <div class="saved-plans-list">
+      ${plans.length ? plans.map(savedPortfolioCardMarkup).join("") : `<article class="saved-plan-empty"><h3>No portfolios saved</h3><p class="muted">Create one from the planner and name it your way.</p><button class="planner-action-btn primary" id="savedPlanStartBtn" type="button">Start Planning</button></article>`}
+    </div>
+  </div>`;
+  if (!openGlobalModal(html, { kind: "saved-plans", size: "wide" })) return;
+  bindSavedPortfolioActions();
+  $("savedPlanStartBtn")?.addEventListener("click", () => {
+    closeGlobalModal();
+    window.setTimeout(() => navigateToTab("planner"), MODAL_ANIMATION_MS + 20);
+  });
+};
+
+const renderSavedPlans = () => {
+  const count = $("savedPlansCount");
+  const list = $("savedPlansList");
+  const hint = $("savedPlansHint");
+  if (!list) return;
+  const plans = readSavedPortfolios();
+  if (count) count.textContent = `${plans.length}/10 saved`;
+  if (hint) hint.textContent = plans.length
+    ? "Open a saved plan to review the exact portfolio, or delete an older one to make room."
+    : "Save a generated portfolio and it will appear here.";
+  list.innerHTML = plans.length
+    ? plans.map(savedPortfolioCardMarkup).join("")
+    : `<article class="saved-plan-empty saved-plan-empty--page"><h3>No saved portfolios yet</h3><p class="muted">Generate a plan, tap Save Plan, and give it a name.</p><button class="planner-action-btn primary" id="savedPlansCreateBtn" type="button">Create Portfolio</button></article>`;
+  bindSavedPortfolioActions(list);
+  $("savedPlansCreateBtn")?.addEventListener("click", () => navigateToTab("planner"));
+};
+
+const showSaveLimitModal = () => {
+  const html = `<div class="save-plan-modal">
+    <p class="eyebrow">Saved plan limit</p>
+    <h2>Maximum 10 portfolios can be saved</h2>
+    <p class="story-copy">Delete an older saved portfolio to make space for this new one.</p>
+    <div class="save-plan-actions">
+      <button class="planner-action-btn secondary" id="saveLimitCancel" type="button">Cancel</button>
+      <button class="planner-action-btn primary" id="saveLimitManage" type="button">Manage Saved Plans</button>
+    </div>
+  </div>`;
+  if (!openGlobalModal(html, { kind: "save-limit" })) return;
+  $("saveLimitCancel")?.addEventListener("click", () => closeGlobalModal());
+  $("saveLimitManage")?.addEventListener("click", () => {
+    closeGlobalModal();
+    window.setTimeout(() => navigateToTab("saved-plans"), MODAL_ANIMATION_MS + 20);
+  });
+};
+
+const openSavePortfolioModal = () => {
+  const projection = plannerPortfolioProjection();
+  const suggestedName = savedPortfolioDefaultName();
+  const html = `<div class="save-plan-modal">
+    <p class="eyebrow">Save portfolio</p>
+    <h2>Name this plan</h2>
+    <p class="story-copy">Give this version a name so you can compare it later from Dashboard > Saved Plans.</p>
+    <label class="save-plan-label" for="savePortfolioName">Portfolio name</label>
+    <input class="save-plan-input" id="savePortfolioName" type="text" maxlength="44" value="${escapeHtml(suggestedName)}" placeholder="My 10Y SIP plan" />
+    <div class="save-plan-preview">
+      <span><strong>${escapeHtml(formatIndianCurrency(projection.projected))}</strong><small>Projected corpus</small></span>
+      <span><strong>${escapeHtml(plannerInvestPhrase())}</strong><small>Investment</small></span>
+    </div>
+    <div class="save-plan-actions">
+      <button class="planner-action-btn secondary" id="cancelSavePortfolio" type="button">Cancel</button>
+      <button class="planner-action-btn primary" id="confirmSavePortfolio" type="button">Save Portfolio</button>
+    </div>
+  </div>`;
+  if (!openGlobalModal(html, { kind: "save-plan" })) return;
+  const input = $("savePortfolioName");
+  input?.focus();
+  input?.select();
+  $("cancelSavePortfolio")?.addEventListener("click", () => closeGlobalModal());
+  $("confirmSavePortfolio")?.addEventListener("click", () => {
+    const name = String(input?.value || "").trim() || suggestedName;
+    const plans = readSavedPortfolios();
+    if (plans.length >= 10) {
+      showSaveLimitModal();
+      return;
+    }
+    plans.unshift(currentPlannerSavedSnapshot(name));
+    writeSavedPortfolios(plans);
+    const button = $("portfolioSaveBtn");
+    if (button) {
+      button.textContent = "Saved";
+      window.setTimeout(() => {
+        button.textContent = "Save Plan";
+      }, 1400);
+    }
+    closeGlobalModal();
+    plannerState.resultsVisible = false;
+    renderSavedPlans();
+    renderPlanner();
+    window.setTimeout(() => navigateToTab("planner"), MODAL_ANIMATION_MS + 20);
+  });
+};
+
+const renderPlannerResults = ({ scroll = false } = {}) => {
+  const projection = plannerPortfolioProjection();
+  const { projected, realProjected, totalInvestment, allocations } = projection;
+
+  if ($("plannerProjectedValue")) $("plannerProjectedValue").textContent = formatIndianCurrency(projected);
+  if ($("plannerRealValue")) $("plannerRealValue").textContent = formatIndianCurrency(realProjected);
+  if ($("plannerSipValue")) $("plannerSipValue").textContent = formatIndianCurrency(totalInvestment);
+  if ($("plannerProjectedSub")) $("plannerProjectedSub").textContent = `Total contribution ${formatIndianCurrency(totalInvestment)} | Return ${plannerState.returnRate}% | Inflation ${plannerState.inflationRate}%`;
+  if ($("plannerRiskBadge")) $("plannerRiskBadge").textContent = `${plannerRiskLabel()} Risk`;
+  if ($("plannerWhyRisk")) $("plannerWhyRisk").textContent = `Calibrated to ${plannerRiskLabel()} risk profile`;
+  if ($("plannerWhyDuration")) $("plannerWhyDuration").textContent = `Optimised for ${plannerState.years}-year horizon`;
+
+  const allocationList = $("plannerAllocList");
+  if (allocationList) {
+    allocationList.innerHTML = roundedPlannerAllocations(allocations).map((item) => {
+      return `<div class="planner-alloc-row">
+        <span class="planner-alloc-dot" style="background:${item.color}"></span>
+        <span class="planner-alloc-label">${escapeHtml(item.label)}</span>
+        <span class="planner-alloc-pct">${item.pct}%</span>
+        <span class="planner-alloc-amt">${formatExactRupees(item.displayAmount)}${plannerAmountSuffix()}</span>
+      </div>`;
+    }).join("");
+  }
+
+  const whyList = $("plannerWhyList");
+  if (whyList) {
+    whyList.innerHTML = buildPlannerPlanExplanation(projection)
+      .map((sentence) => `<li>${escapeHtml(sentence)}</li>`)
+      .join("");
+  }
+
+  const results = $("plannerResults");
+  if (results) {
+    results.hidden = false;
+    results.removeAttribute("aria-hidden");
+    if (scroll) results.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  plannerState.resultsVisible = true;
+};
+
+const hidePlannerResults = () => {
+  const results = $("plannerResults");
+  if (results) {
+    results.hidden = true;
+    results.setAttribute("aria-hidden", "true");
+  }
+  plannerState.resultsVisible = false;
+};
+
+const renderPlanner = () => {
+  const amount = $("plannerAmount");
+  const investSubLabel = $("plannerInvestSubLabel");
+  const years = $("plannerYears");
+  const yearsButton = $("plannerYearsButton");
+  const yearsLabel = $("plannerYearsLabel");
+  const yearsMenu = $("plannerYearsMenu");
+  const slider = $("plannerReturnSlider");
+  const display = $("plannerReturnDisplay");
+  const inflationSlider = $("plannerInflationSlider");
+  const inflationDisplay = $("plannerInflationDisplay");
+
+  if (amount && !amount.dataset.plannerWired) {
+    amount.dataset.plannerWired = "true";
+
+    amount.addEventListener("input", () => {
+      plannerState.amount = Math.max(1000, Number(amount.value) || 5000);
+      updatePlannerInsight();
+      hidePlannerResults();
+    });
+
+    document.querySelectorAll("[data-invest-type]").forEach((button) => {
+      button.addEventListener("click", () => {
+        plannerState.investType = button.dataset.investType === "lumpsum" ? "lumpsum" : "sip";
+        if (plannerState.investType === "lumpsum" && plannerState.amount < 10000) plannerState.amount = 100000;
+        if (amount) {
+          amount.value = String(plannerState.amount);
+          amount.placeholder = plannerState.investType === "sip" ? "5000" : "100000";
+        }
+        if (investSubLabel) investSubLabel.textContent = plannerState.investType === "sip" ? "per month via SIP" : "one-time investment";
+        document.querySelectorAll("[data-invest-type]").forEach((item) => item.classList.toggle("active", item === button));
+        updatePlannerInsight();
+        hidePlannerResults();
+      });
+    });
+
+    years?.addEventListener("change", () => {
+      plannerState.years = Number(years.value) || 10;
+      if (yearsLabel) yearsLabel.textContent = `${plannerState.years} Years`;
+      yearsMenu?.querySelectorAll("[data-years]").forEach((item) => item.classList.toggle("active", Number(item.dataset.years) === plannerState.years));
+      updatePlannerInsight();
+      hidePlannerResults();
+    });
+
+    yearsButton?.addEventListener("click", () => {
+      const open = yearsButton.getAttribute("aria-expanded") === "true";
+      yearsButton.setAttribute("aria-expanded", open ? "false" : "true");
+      if (yearsMenu) yearsMenu.hidden = open;
+    });
+
+    yearsMenu?.querySelectorAll("[data-years]").forEach((button) => {
+      button.addEventListener("click", () => {
+        plannerState.years = Number(button.dataset.years) || 10;
+        if (years) years.value = String(plannerState.years);
+        if (yearsLabel) yearsLabel.textContent = button.textContent || `${plannerState.years} Years`;
+        yearsMenu.querySelectorAll("[data-years]").forEach((item) => item.classList.toggle("active", item === button));
+        yearsButton?.setAttribute("aria-expanded", "false");
+        yearsMenu.hidden = true;
+        updatePlannerInsight();
+        hidePlannerResults();
+      });
+    });
+
+    document.addEventListener("click", (event) => {
+      const control = $("plannerYearsCustom");
+      if (!control || !yearsMenu || yearsMenu.hidden || control.contains(event.target)) return;
+      yearsMenu.hidden = true;
+      yearsButton?.setAttribute("aria-expanded", "false");
+    });
+
+    slider?.addEventListener("input", () => {
+      plannerState.returnRate = Number(slider.value) || 12.5;
+      if (display) display.textContent = `${plannerState.returnRate}%`;
+      updatePlannerInsight();
+      hidePlannerResults();
+    });
+
+    inflationSlider?.addEventListener("input", () => {
+      plannerState.inflationRate = Number(inflationSlider.value) || 6;
+      if (inflationDisplay) inflationDisplay.textContent = `${plannerState.inflationRate}%`;
+      updatePlannerInsight();
+      hidePlannerResults();
+    });
+
+    document.querySelectorAll(".risk-btn[data-risk]").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll(".risk-btn[data-risk]").forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        plannerState.risk = button.dataset.risk || "moderate";
+        updatePlannerInsight();
+        hidePlannerResults();
+      });
+    });
+
+    $("plannerGenerateBtn")?.addEventListener("click", () => renderPlannerResults({ scroll: true }));
+    $("plannerAdjustBtn")?.addEventListener("click", () => {
+      const results = $("plannerResults");
+      if (results) {
+        results.hidden = true;
+        results.setAttribute("aria-hidden", "true");
+      }
+      hidePlannerResults();
+      $("plannerFormCard")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    $("plannerViewDetailBtn")?.addEventListener("click", () => {
+      if (!plannerState.resultsVisible) renderPlannerResults();
+      renderPortfolio();
+      navigateToTab("portfolio");
+    });
+  }
+
+  if (amount) amount.value = String(plannerState.amount);
+  if (amount) amount.placeholder = plannerState.investType === "sip" ? "5000" : "100000";
+  if (investSubLabel) investSubLabel.textContent = plannerState.investType === "sip" ? "per month via SIP" : "one-time investment";
+  document.querySelectorAll("[data-invest-type]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.investType === plannerState.investType);
+  });
+  if (years) years.value = String(plannerState.years);
+  if (yearsLabel) yearsLabel.textContent = `${plannerState.years} Years`;
+  if (slider) slider.value = String(plannerState.returnRate);
+  if (display) display.textContent = `${plannerState.returnRate}%`;
+  if (inflationSlider) inflationSlider.value = String(plannerState.inflationRate);
+  if (inflationDisplay) inflationDisplay.textContent = `${plannerState.inflationRate}%`;
+  document.querySelectorAll(".risk-btn[data-risk]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.risk === plannerState.risk);
+  });
+
+  updatePlannerInsight();
+  if (!plannerState.resultsVisible) hidePlannerResults();
+};
+
+const renderPortfolio = () => {
+  const projection = plannerPortfolioProjection();
+  const { projected, realProjected, totalInvestment, estimatedGain, allocations } = projection;
+  const displayAllocations = roundedPlannerAllocations(allocations);
+  if ($("portfolioProjectedValue")) $("portfolioProjectedValue").textContent = formatIndianCurrency(projected);
+  if ($("portfolioTotalInvestment")) $("portfolioTotalInvestment").textContent = formatIndianCurrency(totalInvestment);
+  if ($("portfolioExpectedReturn")) $("portfolioExpectedReturn").textContent = `${plannerState.returnRate}% p.a.`;
+  if ($("portfolioRealValue")) $("portfolioRealValue").textContent = formatIndianCurrency(realProjected);
+  if ($("portfolioSipValue")) $("portfolioSipValue").textContent = formatIndianCurrency(estimatedGain);
+
+  const donut = $("portfolioDonut");
+  if (donut) {
+    donut.style.background = "transparent";
+    let offset = 0;
+    const segments = allocations.map((item, index) => {
+      const fund = item.funds?.[0]?.fund || null;
+      const fundName = fund?.fundName || "Category allocation";
+      const why = item.funds?.[0]?.reason || "";
+      const displayItem = displayAllocations[index] || item;
+      const reason = why
+        ? `${why}. Allocation bucket ${formatExactRupees(displayItem.displayAmount ?? item.amount)}${plannerAmountSuffix()}.`
+        : `${plannerRiskLabel()} allocation anchor for this bucket.`;
+      const segment = `
+        <circle
+          class="portfolio-donut-segment"
+          data-donut-index="${index}"
+          data-label="${escapeHtml(item.label)}"
+          data-fund="${escapeHtml(fundName)}"
+          data-pct="${item.pct}"
+          data-reason="${escapeHtml(reason)}"
+          cx="50"
+          cy="50"
+          r="36"
+          pathLength="100"
+          fill="none"
+          stroke="${item.color}"
+          stroke-width="22"
+          stroke-dasharray="${item.pct} ${100 - item.pct}"
+          stroke-dashoffset="${-offset}"
+        />
+        <circle
+          class="portfolio-donut-hit"
+          data-donut-index="${index}"
+          data-label="${escapeHtml(item.label)}"
+          data-fund="${escapeHtml(fundName)}"
+          data-pct="${item.pct}"
+          data-reason="${escapeHtml(reason)}"
+          cx="50"
+          cy="50"
+          r="36"
+          pathLength="100"
+          fill="none"
+          stroke="transparent"
+          stroke-width="28"
+          stroke-dasharray="${item.pct} ${100 - item.pct}"
+          stroke-dashoffset="${-offset}"
+        />`;
+      offset += item.pct;
+      return segment;
+    }).join("");
+    donut.innerHTML = `
+      <svg viewBox="0 0 100 100" aria-label="Portfolio allocation chart">
+        <circle class="portfolio-donut-track" cx="50" cy="50" r="36" pathLength="100" fill="none" stroke-width="22"></circle>
+        <g transform="rotate(-90 50 50)">${segments}</g>
+      </svg>
+      <span class="portfolio-donut-center">100%</span>
+      <small class="portfolio-donut-caption">Tap a slice for details</small>
+    `;
+    const center = donut.querySelector(".portfolio-donut-center");
+    const caption = donut.querySelector(".portfolio-donut-caption");
+    const setDonutDetail = (segment) => {
+      donut.querySelectorAll(".portfolio-donut-segment").forEach((item) => item.classList.remove("active"));
+      const visibleSegment = segment.classList.contains("portfolio-donut-hit")
+        ? donut.querySelector(`.portfolio-donut-segment[data-donut-index="${segment.dataset.donutIndex}"]`)
+        : segment;
+      visibleSegment?.classList.add("active");
+      if (center) center.textContent = `${segment.dataset.pct}%`;
+      if (caption) {
+        caption.innerHTML = `
+          <strong>${escapeHtml(segment.dataset.label || "")}</strong>
+          <span>${escapeHtml(segment.dataset.fund || "")}</span>
+          <em>${escapeHtml(segment.dataset.reason || "Chosen to support the selected allocation mix.")}</em>
+        `;
+      }
+    };
+    const setDonutDetailFromEvent = (event) => {
+      const segment = event.target?.closest?.(".portfolio-donut-segment, .portfolio-donut-hit");
+      if (segment) setDonutDetail(segment);
+    };
+    donut.addEventListener("click", setDonutDetailFromEvent);
+    donut.addEventListener("touchstart", setDonutDetailFromEvent, { passive: true });
+    donut.querySelectorAll(".portfolio-donut-segment, .portfolio-donut-hit").forEach((segment) => {
+      segment.addEventListener("click", () => setDonutDetail(segment));
+      segment.addEventListener("touchstart", () => setDonutDetail(segment), { passive: true });
+    });
+    const firstSegment = donut.querySelector(".portfolio-donut-segment");
+    if (firstSegment) setDonutDetail(firstSegment);
+  }
+
+  const allocationList = $("portfolioAllocList");
+  if (allocationList) {
+    allocationList.innerHTML = displayAllocations.map((item) => {
+      return `<div class="planner-alloc-row">
+        <span class="planner-alloc-dot" style="background:${item.color}"></span>
+        <span class="planner-alloc-label">${escapeHtml(item.label.replace(" Equity Funds", "").replace(" Funds", ""))}</span>
+        <span class="planner-alloc-pct">${item.pct}%</span>
+        <span class="planner-alloc-amt">${formatExactRupees(item.displayAmount)}${plannerAmountSuffix()}</span>
+      </div>`;
+    }).join("");
+  }
+
+  const fundList = $("portfolioFundList");
+  if (fundList) {
+    fundList.innerHTML = displayAllocations.map((item) => {
+      const fundsMarkup = roundedPlannerFundEntries(item.funds, item.displayAmount).map((entry) => {
+        const fund = entry.fund;
+        return `<div class="portfolio-fund-row portfolio-fund-row--child">
+          <span class="planner-rec-dot" style="background:${item.color}"></span>
+          <div class="planner-rec-info">
+            <span class="planner-rec-fund">${escapeHtml(fund.fundName)}</span>
+            <span class="planner-rec-category">${entry.pct}% of category | ${formatExactRupees(entry.displayAmount)}${plannerAmountSuffix()}</span>
+            <span class="planner-rec-reason">${escapeHtml(entry.reason)}</span>
+          </div>
+        </div>`;
+      }).join("");
+      return `<div class="portfolio-category-group">
+        <div class="portfolio-category-row">
+          <span class="planner-alloc-dot" style="background:${item.color}"></span>
+          <strong>${escapeHtml(item.label)}</strong>
+          <span>${item.pct}% | ${formatExactRupees(item.displayAmount)}${plannerAmountSuffix()}</span>
+        </div>
+        ${fundsMarkup}
+      </div>`;
+    }).join("");
+  }
+
+  const whyList = $("portfolioWhyList");
+  if (whyList) {
+    whyList.innerHTML = buildPlannerPlanExplanation(projection)
+      .map((sentence) => `<li>${escapeHtml(sentence)}</li>`)
+      .join("");
+  }
+};
+
 const renderProfile = () => {
   const lastSyncAt = localStorage.getItem(DAILY_SYNC_AT_KEY) || "";
   $("uploadStatus").textContent = lastSyncAt ? "Updated" : "Ready";
@@ -2139,9 +3463,8 @@ const showMainApp = () => {
 };
 
 const loadDashboard = () => {
-  state.tab = "dashboard";
   ensureHashRoute();
-  window.location.hash = "#dashboard";
+  state.tab = routeFromHash();
   syncTabUi();
   renderCurrentView();
   renderChrome();
@@ -2414,11 +3737,11 @@ const openDetail = (fundId) => {
   if (fundHistory.length) {
     const validScorePoints = fundHistory.filter((point) => typeof point?.score === "number");
     if (validScorePoints.length > 1) {
-      renderMultiLineSvg($("detailLine"), [{ name: "Dashboard score", values: validScorePoints.map((point) => point.score), color: "#0F766E" }], validScorePoints.map((point) => (point.date || "Current").slice(-5)), $("detailHistoryState"));
+      renderMultiLineSvg($("detailLine"), [{ name: "Dashboard score", values: validScorePoints.map((point) => point.score), color: "#4DA3FF" }], validScorePoints.map((point) => (point.date || "Current").slice(-5)), $("detailHistoryState"));
       $("detailHistoryState").hidden = false;
     } else if (validScorePoints.length === 1) {
       const onlyPoint = validScorePoints[0];
-      renderMultiLineSvg($("detailLine"), [{ name: "Dashboard score", values: [onlyPoint.score], color: "#0F766E" }], [(onlyPoint.date || "Latest").slice(-5)], $("detailHistoryState"));
+      renderMultiLineSvg($("detailLine"), [{ name: "Dashboard score", values: [onlyPoint.score], color: "#4DA3FF" }], [(onlyPoint.date || "Latest").slice(-5)], $("detailHistoryState"));
       $("detailHistoryState").textContent = "Limited historical data";
     } else {
       $("detailLine").innerHTML = `<div class="empty-chart">Historical score data is unavailable for this fund.</div>`;
@@ -2565,6 +3888,9 @@ const renderAll = () => {
     renderInsights();
     renderCompare();
     renderProfile();
+    renderPlanner();
+    renderPortfolio();
+    renderSavedPlans();
     syncControlState();
   } catch (error) {
     console.error(`${APP_NAME} render failure`, error);
@@ -2583,7 +3909,10 @@ const renderCurrentView = () => {
   if (state.tab === "funds") renderFunds();
   if (state.tab === "insights") renderInsights();
   if (state.tab === "compare") renderCompare();
+  if (state.tab === "planner") renderPlanner();
   if (state.tab === "profile") renderProfile();
+  if (state.tab === "portfolio") renderPortfolio();
+  if (state.tab === "saved-plans") renderSavedPlans();
 
   syncControlState();
 };
@@ -2606,6 +3935,14 @@ const persistLiveDataWhenIdle = (data) => {
 
 const bindEvents = () => {
   $("themeToggle").addEventListener("click", () => setTheme(state.theme === "dark" ? "light" : "dark"));
+  $("themeToggle")?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    setTheme(state.theme === "dark" ? "light" : "dark");
+  });
+  $("aboutPillBtn")?.addEventListener("click", () => {
+    navigateToTab("profile");
+  });
   $("profileTheme").addEventListener("click", () => setTheme(state.theme === "dark" ? "light" : "dark"));
   $("categoryTrigger").addEventListener("click", () => openPicker("category"));
   $("compareFundATrigger").addEventListener("click", () => openPicker("compareFundA"));
@@ -2625,6 +3962,43 @@ const bindEvents = () => {
 
   document.querySelectorAll(".bottom-nav [data-tab]").forEach((button) => {
     button.addEventListener("click", () => switchTab(button.dataset.tab, 0));
+  });
+
+  $("aboutBackBtn")?.addEventListener("click", () => navigateToTab("dashboard"));
+  $("savedPlansBackBtn")?.addEventListener("click", () => navigateToTab("dashboard"));
+  $("portfolioBackBtn")?.addEventListener("click", () => navigateToTab("planner"));
+  $("portfolioAdjustBtn")?.addEventListener("click", () => navigateToTab("planner"));
+  $("portfolioSaveBtn")?.addEventListener("click", openSavePortfolioModal);
+
+  document.querySelectorAll(".qa-card[data-qa]").forEach((card) => {
+    const openAction = () => {
+      const action = card.dataset.qa;
+      if (action === "planner") {
+        navigateToTab("planner");
+      } else if (action === "compare") {
+        navigateToTab("compare");
+      } else if (action === "sip") {
+        navigateToTab("planner");
+        window.setTimeout(() => $("plannerModeTabSip")?.click(), 80);
+      } else if (action === "saved-plans") {
+        navigateToTab("saved-plans");
+      } else if (action === "watchlist") {
+        navigateToTab("funds");
+        window.setTimeout(() => document.querySelector('[data-fund-view="favorites"]')?.click(), 80);
+      }
+    };
+    card.addEventListener("click", openAction);
+    card.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      openAction();
+    });
+  });
+  document.querySelectorAll(".planner-promo-action").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      navigateToTab("planner");
+    });
   });
 
   document.querySelectorAll("[data-horizon]").forEach((button) => {

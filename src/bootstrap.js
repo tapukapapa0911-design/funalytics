@@ -1,6 +1,6 @@
 (async () => {
   const MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000;
-  const BUILD_VERSION = "live-nav-v37";
+  const BUILD_VERSION = "live-nav-v38";
   const LAST_SYNCED_DATE_KEY = "lastSyncedDate";
   const LAST_SYNC_ATTEMPT_KEY = "lastSyncAttempt";
   const CACHED_NAV_DATE_KEY = "cachedNavDate";
@@ -251,7 +251,7 @@
   if (!dataProvider) {
     console.warn("[live-data-version] dataProvider unavailable during bootstrap; using backup data");
     window.FUND_APP_DATA = backupData;
-    await loadScript("./src/app.js");
+      await loadScript("./src/app.js?v=live-nav-v86");
     window.setTimeout(() => {
       loadOptionalScript("./assets/vendor/jszip.min.js")
         .then(() => loadOptionalScript("./src/workbook-import.js"));
@@ -266,7 +266,7 @@
     writeCachedNavDate(navDateOf(initialData));
   }
 
-  await loadScript("./src/app.js");
+      await loadScript("./src/app.js?v=live-nav-v86");
 
   window.setTimeout(() => {
     loadOptionalScript("./assets/vendor/jszip.min.js")
@@ -526,3 +526,4 @@
     });
   });
 })();
+
