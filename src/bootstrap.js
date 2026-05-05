@@ -1,4 +1,4 @@
-(async () => {
+﻿(async () => {
   const MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000;
   const BUILD_VERSION = "live-nav-v38";
   const LAST_SYNCED_DATE_KEY = "lastSyncedDate";
@@ -166,7 +166,6 @@
 
   const hasUsableLiveNavData = (data) => {
     if (!data) return false;
-    if (isoDateValue(navDateOf(data))) return true;
     return Array.isArray(data?.funds) && data.funds.some((fund) => (
       Number.isFinite(Number(fund?.latestNav)) && isoDateValue(fund?.liveNavDate)
     ));
@@ -251,7 +250,7 @@
   if (!dataProvider) {
     console.warn("[live-data-version] dataProvider unavailable during bootstrap; using backup data");
     window.FUND_APP_DATA = backupData;
-      await loadScript("./src/app.js?v=live-nav-v86");
+      await loadScript("./src/app.js?v=live-nav-v92");
     window.setTimeout(() => {
       loadOptionalScript("./assets/vendor/jszip.min.js")
         .then(() => loadOptionalScript("./src/workbook-import.js"));
@@ -266,7 +265,7 @@
     writeCachedNavDate(navDateOf(initialData));
   }
 
-      await loadScript("./src/app.js?v=live-nav-v86");
+      await loadScript("./src/app.js?v=live-nav-v92");
 
   window.setTimeout(() => {
     loadOptionalScript("./assets/vendor/jszip.min.js")

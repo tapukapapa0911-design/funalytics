@@ -3388,17 +3388,7 @@ const renderPortfolio = () => {
 const renderProfile = () => {
   const lastSyncAt = localStorage.getItem(DAILY_SYNC_AT_KEY) || "";
   $("uploadStatus").textContent = lastSyncAt ? "Updated" : "Ready";
-  const installButton = profileInstallButtonEl();
-  const installValue = $("installStatus");
-  const installed = isInstalledApp();
-  const shouldShowInstall = !installed && (shouldShowBrowserInstallCta() || canShowInstall || Boolean(deferredInstallPrompt));
-  if (installValue) {
-    installValue.textContent = installed ? "Installed" : deferredInstallPrompt ? "Tap to install" : "Install from browser";
-  }
-  if (installButton) {
-    installButton.hidden = !shouldShowInstall;
-    installButton.style.display = shouldShowInstall ? "" : "none";
-  }
+  updateInstallButton();
 };
 
 const handleManualNavSync = async () => {
@@ -3414,7 +3404,7 @@ const handleManualNavSync = async () => {
 };
 
 const isStandaloneMode = () => window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
-const isInstalledApp = () => window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+const isInstalledApp = () => window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
 const hasSeenOnboarding = () => localStorage.getItem(ONBOARDING_KEY) === "true" || localStorage.getItem(LEGACY_ONBOARDING_KEY) === "true";
 const hasCompletedInstallFlow = () => localStorage.getItem(INSTALL_FLOW_KEY) === "true";
 const shouldShowBrowserInstallCta = () => localStorage.getItem(BROWSER_INSTALL_CTA_KEY) === "true";
@@ -3647,6 +3637,30 @@ const bindPullToRefreshGuard = () => {
      touch interception that can block normal app scrolling on mobile. */
 };
 
+const promptForInstall = async () => {
+  if (!deferredInstallPrompt) {
+    const installValue = $("installStatus");
+    if (installValue) installValue.textContent = "Install now";
+    updateInstallButton();
+    return false;
+  }
+  deferredInstallPrompt.prompt();
+  try {
+    const choice = await deferredInstallPrompt.userChoice;
+    const accepted = choice?.outcome === "accepted";
+    if (accepted) {
+      localStorage.removeItem(BROWSER_INSTALL_CTA_KEY);
+    } else {
+      localStorage.setItem(BROWSER_INSTALL_CTA_KEY, "true");
+    }
+    return accepted;
+  } finally {
+    deferredInstallPrompt = null;
+    canShowInstall = false;
+    updateInstallButton();
+  }
+};
+
 const updateInstallButton = () => {
   const button = profileInstallButtonEl();
   if (!button) return;
@@ -3661,7 +3675,7 @@ const updateInstallButton = () => {
   button.style.display = "";
   const installValue = $("installStatus");
   if (installValue) {
-    installValue.textContent = deferredInstallPrompt ? "Tap to install" : "Install from browser";
+    installValue.textContent = installed ? "Installed" : "Install now";
   }
 };
 
@@ -4025,22 +4039,8 @@ $("searchInput").addEventListener("input", (event) => {
   });
 
   $("onboardingInstallButton")?.addEventListener("click", async () => {
-    let acceptedInstall = false;
-    if (deferredInstallPrompt) {
-      deferredInstallPrompt.prompt();
-      try {
-        const choice = await deferredInstallPrompt.userChoice;
-        acceptedInstall = choice?.outcome === "accepted";
-      } finally {
-        deferredInstallPrompt = null;
-        updateInstallButton();
-      }
-    }
-    if (acceptedInstall) {
-      localStorage.removeItem(BROWSER_INSTALL_CTA_KEY);
-    } else {
-      localStorage.setItem(BROWSER_INSTALL_CTA_KEY, "true");
-    }
+    await promptForInstall();
+    localStorage.removeItem(BROWSER_INSTALL_CTA_KEY);
     localStorage.setItem(INSTALL_FLOW_KEY, "true");
     showOnboardingSlides();
   });
@@ -4051,26 +4051,10 @@ $("searchInput").addEventListener("input", (event) => {
     showOnboardingSlides();
   });
   profileInstallButtonEl()?.addEventListener("click", async () => {
-    if (!deferredInstallPrompt) {
+    const acceptedInstall = await promptForInstall();
+    if (acceptedInstall) {
       const installValue = $("installStatus");
-      if (installValue) installValue.textContent = "Install from browser";
-      return;
-    }
-    deferredInstallPrompt.prompt();
-    try {
-      const choice = await deferredInstallPrompt.userChoice;
-      if (choice?.outcome === "accepted") {
-        const installValue = $("installStatus");
-        if (installValue) installValue.textContent = "Installed";
-        localStorage.removeItem(BROWSER_INSTALL_CTA_KEY);
-        updateInstallButton();
-      } else {
-        localStorage.setItem(BROWSER_INSTALL_CTA_KEY, "true");
-      }
-    } finally {
-      deferredInstallPrompt = null;
-      canShowInstall = false;
-      updateInstallButton();
+      if (installValue) installValue.textContent = "Installed";
     }
   });
   document.querySelectorAll(".onboarding-next").forEach((button) => {

@@ -9594,3 +9594,582 @@ body.light .loading-shimmer,
 .secondary-action:active {
   transform: scale(0.97) translateZ(0);
 }
+
+/* v87 deploy polish: keep mobile chrome glassy without the light grey slab. */
+.bottom-nav,
+body.light .bottom-nav,
+[data-theme="light"] .bottom-nav {
+  background:
+    linear-gradient(180deg, rgba(8, 13, 24, 0.62), rgba(6, 10, 20, 0.46)) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(77, 163, 255, 0.10)) border-box !important;
+  border-color: transparent !important;
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10) !important;
+  backdrop-filter: blur(28px) saturate(135%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(135%) !important;
+}
+
+body.light .bottom-nav button,
+[data-theme="light"] .bottom-nav button {
+  color: rgba(226, 232, 240, 0.64) !important;
+}
+
+body.light .bottom-nav,
+[data-theme="light"] .bottom-nav {
+  background:
+    linear-gradient(180deg, rgba(8, 13, 24, 0.84), rgba(6, 10, 20, 0.72)) padding-box,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(77, 163, 255, 0.10)) border-box !important;
+}
+
+body.light .bottom-nav button.active,
+[data-theme="light"] .bottom-nav button.active {
+  color: #ffffff !important;
+}
+
+.planner-years-control {
+  position: relative;
+}
+
+.planner-years-trigger {
+  width: 100%;
+  min-height: 62px;
+  justify-content: space-between;
+  padding: 0 18px;
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025)) padding-box,
+    linear-gradient(135deg, rgba(77, 163, 255, 0.24), rgba(124, 58, 237, 0.18)) border-box;
+  border: 1px solid transparent;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.planner-years-trigger i {
+  width: 12px;
+  height: 12px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 180ms var(--ios-fluid-ease);
+}
+
+.planner-years-trigger[aria-expanded="true"] i {
+  transform: rotate(225deg) translate(-2px, -2px);
+}
+
+.planner-years-menu {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 10px);
+  left: 0;
+  right: 0;
+  display: grid;
+  gap: 8px;
+  max-height: min(328px, 52vh);
+  overflow: auto;
+  padding: 10px;
+  border-radius: 24px;
+  border: 1px solid rgba(77, 163, 255, 0.22);
+  background: rgba(18, 24, 43, 0.98);
+  box-shadow: 0 24px 52px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(22px) saturate(130%);
+  -webkit-backdrop-filter: blur(22px) saturate(130%);
+}
+
+.planner-years-menu[hidden] {
+  display: none !important;
+}
+
+.planner-years-menu button {
+  min-height: 52px;
+  padding: 0 16px;
+  border-radius: 17px;
+  border: 1px solid rgba(255, 255, 255, 0.065);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 800;
+  text-align: left;
+  transition:
+    transform 170ms var(--ios-fluid-ease),
+    background-color 170ms var(--ios-fluid-ease),
+    border-color 170ms var(--ios-fluid-ease),
+    box-shadow 170ms var(--ios-fluid-ease);
+}
+
+.planner-years-menu button:hover,
+.planner-years-menu button:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(77, 163, 255, 0.26);
+  background: rgba(77, 163, 255, 0.10);
+}
+
+.planner-years-menu button.active {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.12);
+  background: var(--accent-gradient, linear-gradient(135deg, #7c3aed, #4f6fe8, #06b6d4));
+  box-shadow: 0 10px 24px rgba(79, 111, 232, 0.22);
+}
+
+body.light .planner-years-trigger,
+[data-theme="light"] .planner-years-trigger {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(237, 240, 247, 0.88)) padding-box,
+    linear-gradient(135deg, rgba(77, 163, 255, 0.20), rgba(124, 58, 237, 0.14)) border-box;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.07);
+}
+
+body.light .planner-years-menu,
+[data-theme="light"] .planner-years-menu {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: rgba(148, 163, 184, 0.24);
+  box-shadow: 0 22px 46px rgba(15, 23, 42, 0.14);
+}
+
+body.light .planner-years-menu button,
+[data-theme="light"] .planner-years-menu button {
+  background: rgba(244, 246, 251, 0.92);
+  border-color: rgba(148, 163, 184, 0.20);
+  color: var(--text-primary);
+}
+
+@media (max-width: 640px) {
+  .planner-result-hero {
+    align-items: flex-start !important;
+  }
+
+  .planner-result-sip {
+    align-self: flex-start !important;
+    margin-top: 8px;
+    text-align: left !important;
+  }
+
+  .planner-result-sip .eyebrow {
+    text-align: left !important;
+  }
+}
+
+/* v88: lighter motion + blue glass nav for both themes. */
+.bottom-nav,
+body.light .bottom-nav,
+[data-theme="light"] .bottom-nav {
+  background:
+    linear-gradient(180deg, rgba(18, 33, 58, 0.70), rgba(10, 18, 34, 0.56)) padding-box,
+    linear-gradient(180deg, rgba(77, 163, 255, 0.18), rgba(124, 58, 237, 0.10)) border-box !important;
+  box-shadow:
+    0 14px 34px rgba(5, 10, 22, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+  backdrop-filter: blur(20px) saturate(126%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(126%) !important;
+}
+
+body.light .bottom-nav button,
+[data-theme="light"] .bottom-nav button {
+  color: rgba(226, 232, 240, 0.70) !important;
+}
+
+.screen.active {
+  animation: screenInLite 145ms var(--ios-fluid-ease) both !important;
+}
+
+.screen.active > * {
+  animation-duration: 155ms !important;
+}
+
+.screen.active > *:nth-child(2) { animation-delay: 10ms !important; }
+.screen.active > *:nth-child(3) { animation-delay: 18ms !important; }
+.screen.active > *:nth-child(4) { animation-delay: 26ms !important; }
+.screen.active > *:nth-child(5) { animation-delay: 34ms !important; }
+
+.daily-sync-overlay,
+.global-modal {
+  transition-duration: 160ms !important;
+}
+
+.bottom-nav,
+.global-modal__card,
+.daily-sync-card,
+.planner-results {
+  will-change: auto !important;
+}
+
+.skeleton,
+.skeleton-line,
+.skeleton-card,
+.loading-shimmer {
+  animation-duration: 1050ms !important;
+}
+
+.metric-card,
+.fund-card,
+.insight-card,
+.planner-section-card,
+.planner-form-card,
+.qa-card {
+  contain: layout paint;
+}
+
+/* v89: restore the older pleasant light-theme dock, fitted to the current nav. */
+body.light .bottom-nav,
+[data-theme="light"] .bottom-nav {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(241, 246, 255, 0.68)) padding-box,
+    linear-gradient(135deg, rgba(123, 97, 255, 0.16), rgba(77, 163, 255, 0.18)) border-box !important;
+  border: 1px solid transparent !important;
+  box-shadow:
+    0 14px 34px rgba(15, 23, 42, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72) !important;
+  backdrop-filter: blur(22px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(150%) !important;
+}
+
+body.light .bottom-nav button,
+[data-theme="light"] .bottom-nav button {
+  color: rgba(71, 85, 105, 0.78) !important;
+  text-shadow: none !important;
+}
+
+body.light .bottom-nav button span,
+[data-theme="light"] .bottom-nav button span {
+  color: inherit !important;
+}
+
+body.light .bottom-nav button.active,
+[data-theme="light"] .bottom-nav button.active {
+  background:
+    linear-gradient(180deg, rgba(77, 163, 255, 0.20), rgba(123, 97, 255, 0.16)) padding-box,
+    linear-gradient(135deg, rgba(77, 163, 255, 0.28), rgba(123, 97, 255, 0.22)) border-box !important;
+  border: 1px solid transparent !important;
+  color: #0f172a !important;
+  box-shadow:
+    0 8px 22px rgba(77, 163, 255, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.62) !important;
+}
+
+body.light .bottom-nav button.active span,
+[data-theme="light"] .bottom-nav button.active span {
+  color: #334155 !important;
+}
+
+/* v92: final dock fit + older soft light-theme glass. Keeps the nav from
+   stretching when mobile browser safe-area values change during scroll. */
+:root {
+  --nav-height: var(--nav-base-height);
+  --nav-dock-offset: calc(env(safe-area-inset-bottom, 0px) + 12px);
+}
+
+.bottom-nav {
+  height: var(--nav-base-height) !important;
+  min-height: var(--nav-base-height) !important;
+  max-height: var(--nav-base-height) !important;
+  padding: 5px !important;
+  overflow: hidden !important;
+  isolation: isolate;
+}
+
+.bottom-nav button {
+  min-height: calc(var(--nav-base-height) - 10px) !important;
+  height: calc(var(--nav-base-height) - 10px);
+  border-radius: 999px !important;
+}
+
+body.light .bottom-nav,
+[data-theme="light"] .bottom-nav {
+  background:
+    linear-gradient(to top, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.82)) padding-box,
+    linear-gradient(135deg, rgba(148, 163, 184, 0.18), rgba(123, 97, 255, 0.10)) border-box !important;
+  border: 1px solid transparent !important;
+  box-shadow:
+    0 12px 28px rgba(15, 23, 42, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(22px) saturate(145%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(145%) !important;
+}
+
+body.light .bottom-nav button,
+[data-theme="light"] .bottom-nav button {
+  color: rgba(51, 65, 85, 0.72) !important;
+  opacity: 1 !important;
+}
+
+body.light .bottom-nav button.active,
+[data-theme="light"] .bottom-nav button.active {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(238, 242, 255, 0.72)) padding-box,
+    linear-gradient(135deg, rgba(94, 234, 212, 0.16), rgba(139, 92, 246, 0.16)) border-box !important;
+  border: 1px solid transparent !important;
+  color: #0f172a !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 8px 20px rgba(15, 23, 42, 0.12) !important;
+}
+
+body.light .bottom-nav button.active span,
+[data-theme="light"] .bottom-nav button.active span {
+  color: #334155 !important;
+}
+
+.version-row strong,
+#installStatus {
+  white-space: nowrap;
+}
+
+button.about-item {
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  border-radius: 0;
+  font: inherit;
+}
+
+/* v91: final iOS-style motion/loading polish. */
+:root {
+  --ios-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ios-ease-press: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body,
+button,
+input,
+select,
+textarea,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.screen.active {
+  animation: screenInSilky 220ms var(--ios-ease-out) both !important;
+}
+
+.screen:not(.active) {
+  transition:
+    opacity 170ms var(--ios-ease-out),
+    transform 170ms var(--ios-ease-out) !important;
+}
+
+.screen.active > * {
+  animation: cardRiseSoft 260ms var(--ios-ease-out) both !important;
+}
+
+.screen.active > *:nth-child(2) { animation-delay: 14ms !important; }
+.screen.active > *:nth-child(3) { animation-delay: 28ms !important; }
+.screen.active > *:nth-child(4) { animation-delay: 42ms !important; }
+.screen.active > *:nth-child(5) { animation-delay: 56ms !important; }
+.screen.active > *:nth-child(6) { animation-delay: 70ms !important; }
+
+@keyframes screenInSilky {
+  from {
+    opacity: 0.72;
+    transform: translate3d(0, 7px, 0) scale(0.996);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes cardRiseSoft {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.bottom-nav {
+  transition:
+    background 220ms var(--ios-ease-out),
+    border-color 220ms var(--ios-ease-out),
+    box-shadow 220ms var(--ios-ease-out),
+    transform 220ms var(--ios-ease-out) !important;
+}
+
+.bottom-nav button,
+.about-pill-btn,
+.qa-card,
+.metric-card,
+.fund-card,
+.insight-card,
+.planner-form-card,
+.planner-section-card,
+.planner-generate-btn,
+.planner-action-btn,
+.portfolio-save-btn,
+.portfolio-action-btn,
+.risk-btn,
+.toggle-opt,
+.chip,
+.segmented button,
+.time-filter button,
+.quick-filter-row button,
+.favorite-toggle,
+.sheet-close,
+.global-modal__close,
+.planner-years-trigger,
+.planner-years-menu button {
+  transition:
+    transform 190ms var(--ios-ease-press),
+    opacity 190ms var(--ios-ease-press),
+    background-color 190ms var(--ios-ease-press),
+    border-color 190ms var(--ios-ease-press),
+    box-shadow 190ms var(--ios-ease-press),
+    color 190ms var(--ios-ease-press) !important;
+}
+
+.bottom-nav button:active,
+.about-pill-btn:active,
+.qa-card:active,
+.metric-card:active,
+.fund-card:active,
+.insight-card:active,
+.planner-form-card:active,
+.planner-section-card:active,
+.planner-generate-btn:active,
+.planner-action-btn:active,
+.portfolio-save-btn:active,
+.portfolio-action-btn:active,
+.risk-btn:active,
+.toggle-opt:active,
+.chip:active,
+.segmented button:active,
+.time-filter button:active,
+.quick-filter-row button:active,
+.favorite-toggle:active,
+.sheet-close:active,
+.global-modal__close:active,
+.planner-years-trigger:active,
+.planner-years-menu button:active {
+  transform: scale(0.975) translateZ(0) !important;
+}
+
+@media (hover: hover) {
+  .qa-card:hover,
+  .metric-card:hover,
+  .fund-card:hover,
+  .insight-card:hover,
+  .planner-section-card:hover,
+  .planner-form-card:hover {
+    transform: translate3d(0, -2px, 0) !important;
+  }
+}
+
+.global-modal,
+.daily-sync-overlay,
+.save-modal,
+.toast,
+.category-sheet,
+.planner-years-menu {
+  transition:
+    opacity 220ms var(--ios-ease-out),
+    transform 220ms var(--ios-ease-out),
+    visibility 220ms var(--ios-ease-out) !important;
+}
+
+.global-modal__card,
+.daily-sync-card,
+.save-modal__card,
+.category-panel,
+.planner-results {
+  animation-duration: 280ms !important;
+  animation-timing-function: var(--ios-ease-out) !important;
+}
+
+.skeleton,
+.skeleton-line,
+.skeleton-card,
+.loading-shimmer {
+  background-size: 220% 100% !important;
+  animation-duration: 1350ms !important;
+  animation-timing-function: linear !important;
+}
+
+.daily-sync-progress-fill,
+.planner-slider,
+.progress-fill,
+.bar-fill,
+.score-bar-fill,
+.metric-bar-fill {
+  transition:
+    transform 260ms var(--ios-ease-out),
+    width 260ms var(--ios-ease-out),
+    opacity 220ms var(--ios-ease-out),
+    background-color 220ms var(--ios-ease-out) !important;
+}
+
+.line-chart svg,
+.donut-chart,
+.portfolio-donut,
+.radar-chart {
+  transform: translateZ(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .screen.active,
+  .screen.active > *,
+  .global-modal__card,
+  .daily-sync-card,
+  .save-modal__card,
+  .category-panel,
+  .planner-results {
+    animation: none !important;
+  }
+
+  .bottom-nav,
+  .bottom-nav button,
+  .qa-card,
+  .metric-card,
+  .fund-card,
+  .insight-card,
+  .planner-section-card,
+  .planner-form-card {
+    transition-duration: 1ms !important;
+  }
+}
+
+/* v90: final light-theme nav pass using the older white glass dock, dark nav untouched. */
+body.light .bottom-nav,
+[data-theme="light"] .bottom-nav {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(246, 249, 255, 0.72)) padding-box,
+    linear-gradient(135deg, rgba(123, 97, 255, 0.14), rgba(77, 163, 255, 0.16), rgba(0, 209, 178, 0.08)) border-box !important;
+  border: 1px solid transparent !important;
+  box-shadow:
+    0 16px 36px rgba(15, 23, 42, 0.11),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86) !important;
+  backdrop-filter: blur(24px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(160%) !important;
+}
+
+body.light .bottom-nav button,
+[data-theme="light"] .bottom-nav button {
+  color: rgba(71, 85, 105, 0.72) !important;
+  text-shadow: none !important;
+}
+
+body.light .bottom-nav button.active,
+[data-theme="light"] .bottom-nav button.active {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(238, 242, 255, 0.68)) padding-box,
+    linear-gradient(135deg, rgba(123, 97, 255, 0.22), rgba(77, 163, 255, 0.18)) border-box !important;
+  border: 1px solid transparent !important;
+  color: #0f172a !important;
+  box-shadow:
+    0 10px 24px rgba(59, 130, 246, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92) !important;
+}
+
+body.light .bottom-nav button.active span,
+[data-theme="light"] .bottom-nav button.active span {
+  color: #334155 !important;
+}
