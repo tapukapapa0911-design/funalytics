@@ -46,7 +46,7 @@ let updateCheckTimer = null;
 const deferredRenderJobs = new Map();
 let controlStateFrame = 0;
 let searchInputTimer = 0;
-const APP_DATA_STORAGE_KEY = "fundpulse-live-data-v8";
+const APP_DATA_STORAGE_KEY = "fundpulse-live-data-v10";
 const UI_IDLE_APPLY_MS = 900;
 const DAILY_SYNC_DATE_KEY = "fundpulse-daily-sync-date";
 const DAILY_SYNC_COMPLETED_KEY = "fundpulse-daily-sync-completed";
@@ -175,16 +175,16 @@ const routeFromHash = () => {
 };
 
 const localTodayIso = () => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
+  const now = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+  const year = now.getUTCFullYear();
+  const month = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(now.getUTCDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 };
 
 function loadStoredData() {
   try {
-    const raw = localStorage.getItem("fundpulse-live-data-v8");
+    const raw = localStorage.getItem("fundpulse-live-data-v10");
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     const dataset = parsed?.data && Array.isArray(parsed.data?.funds) ? parsed.data : parsed;
@@ -708,11 +708,17 @@ const latestNavDateForFunds = (funds = []) => {
 };
 
 const latestNavDateForCategory = (category = state.category) => {
+  const globalDate = String(appData?.liveNavDate || appData?.latestDate || "").trim();
+  const allFundDate = latestNavDateForFunds(allFunds());
+  const strongestGlobalDate = [globalDate, allFundDate]
+    .filter((date) => isoDateValue(date))
+    .sort((left, right) => isoDateValue(right) - isoDateValue(left))[0];
+  if (strongestGlobalDate) return strongestGlobalDate;
   const funds = allFunds().filter((fund) => fund.category === category);
   const fundDate = latestNavDateForFunds(funds);
   if (fundDate) return fundDate;
   if (appData?.liveNavStatus === "syncing") return null;
-  return appData?.liveNavDate || appData?.latestDate || null;
+  return null;
 };
 
 const historyFor = (fund) => {
@@ -3718,30 +3724,66 @@ const openDetail = (fundId) => {
   });
 };
 
-const buildMiniReportChart = (funds) => {
-  const width = 620;
-  const height = 260;
-  const padding = { top: 30, right: 28, bottom: 44, left: 36 };
-  const values = funds.map((fund) => scoreOf(fund));
-  const max = Math.max(10, ...values);
-  const plotWidth = width - padding.left - padding.right;
-  const plotHeight = height - padding.top - padding.bottom;
-  const barWidth = Math.min(74, plotWidth / Math.max(2, funds.length * 1.6));
-  const gap = funds.length > 1 ? (plotWidth - barWidth * funds.length) / (funds.length - 1) : 0;
-  const ticks = [0, Math.round(max / 2), max];
-  const grid = ticks.map((tick) => {
-    const y = height - padding.bottom - (tick / max) * plotHeight;
-    return `<g><line x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}" stroke="#cbd5e1"/><text x="6" y="${y + 4}" fill="#64748b" font-size="11">${tick}</text></g>`;
-  }).join("");
-  const bars = funds.map((fund, index) => {
-    const x = padding.left + index * (barWidth + gap);
-    const value = scoreOf(fund);
-    const barHeight = (value / max) * plotHeight;
-    const y = height - padding.bottom - barHeight;
-    const color = index === 0 ? "#4a63ff" : "#58d0ff";
-    return `<g><rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" rx="14" fill="${color}"/><text x="${x + barWidth / 2}" y="${y - 8}" text-anchor="middle" fill="#0f172a" font-size="11" font-weight="800">${scoreLabel(value)}</text><text x="${x + barWidth / 2}" y="${height - 18}" text-anchor="middle" fill="#64748b" font-size="10" font-weight="700">${escapeHtml(fund.fundName.slice(0, 14))}</text></g>`;
-  }).join("");
-  return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Top fund dashboard scores">${grid}${bars}</svg>`;
+const reportNumber = (value) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
+const reportPct = (value, digits = 1) => reportNumber(value) === null ? "-" : `${(Number(value) * 100).toFixed(digits)}%`;
+
+const reportMetric = (fund, key) => {
+  const direct = reportNumber(fund?.[key]);
+  if (direct !== null) return direct;
+  const aliases = {
+    sharpe: ["sharpeRatio"],
+    sortino: ["sortinoRatio"],
+    pe: ["priceEarnings", "peRatio", "livePe"],
+    pb: ["priceBook", "pbRatio", "livePb"]
+  }[key] || [];
+  for (const alias of aliases) {
+    const value = reportNumber(fund?.[alias]);
+    if (value !== null) return value;
+  }
+  return null;
+};
+
+const reportScoreColor = (score) => score >= 70 ? "#00C896" : (score >= 50 ? "#FFA500" : "#FF5C5C");
+
+const reportShortName = (name = "") => String(name)
+  .replace(/\s*-\s*Regular Plan/ig, "")
+  .replace(/\s*\(G\)\s*/ig, "")
+  .replace(/\s*Growth\s*/ig, "")
+  .trim();
+
+const reportMedian = (values = []) => {
+  const sorted = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+  if (!sorted.length) return 0;
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+};
+
+const reportTrendArrow = (fund) => {
+  const scores = mergedFundHistory(fund).map((point) => reportNumber(point?.score)).filter((value) => value !== null);
+  if (scores.length < 2) return "→";
+  const delta = scores.at(-1) - scores.at(-2);
+  if (delta > 1) return "↑";
+  if (delta < -1) return "↓";
+  return "→";
+};
+
+const reportNormalisedScore = (fund, key, categoryFunds, lowerIsBetter = false) => {
+  const value = key === "oneYear" || key === "threeYear" || key === "fiveYear"
+    ? reportNumber(fund?.[key])
+    : reportMetric(fund, key);
+  if (value === null) return 0;
+  const values = categoryFunds
+    .map((item) => key === "oneYear" || key === "threeYear" || key === "fiveYear" ? reportNumber(item?.[key]) : reportMetric(item, key))
+    .filter((item) => item !== null);
+  const min = Math.min(...values, value);
+  const max = Math.max(...values, value);
+  if (max === min) return 5;
+  const raw = lowerIsBetter ? (max - value) / (max - min) : (value - min) / (max - min);
+  return Math.max(0, Math.min(10, Number((raw * 10).toFixed(1))));
 };
 
 const buildReportHtml = () => {
@@ -3749,46 +3791,330 @@ const buildReportHtml = () => {
   const summary = summaryForCategory();
   const categoryFunds = allCategoryFunds();
   const topFunds = categoryFunds.slice(0, 10);
-  const chartFunds = categoryFunds.slice(0, 5);
-  const rows = historyFor(fund).map((point) => `<tr><td>${point.date}</td><td>${scoreLabel(point.score)}</td><td>${formatPct(point.oneYear)}</td><td>${formatPct(point.threeYear)}</td><td>${formatPct(point.fiveYear)}</td></tr>`).join("");
-  const leagueTable = topFunds.map((item) => `<tr><td>#${item.rank}</td><td>${escapeHtml(item.fundName)}</td><td>${scoreLabel(scoreOf(item))}</td><td>${formatPct(item.oneYear)}</td><td>${formatPct(item.threeYear)}</td><td>${formatPct(item.fiveYear)}</td><td>${riskLabel(item)}</td></tr>`).join("");
-  return `
-    <html><head><title>${APP_NAME} Report</title><style>
-      body{font-family:Inter,Arial,sans-serif;padding:32px;color:#0f172a;background:#f8fafc} h1,h2,h3{margin:0 0 12px} .muted{color:#64748b;line-height:1.5}
-      .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0}
-      .card{border:1px solid #dbe3ef;border-radius:16px;padding:18px;background:#fff;box-shadow:0 10px 28px rgba(15,23,42,.05)}
-      .wide{grid-column:1/-1}.two{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}
-      table{width:100%;border-collapse:collapse;margin-top:16px;font-size:13px} th,td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:left}
-      .badge{display:inline-block;padding:6px 10px;border-radius:999px;background:#edf1ff;color:#4a63ff;font-weight:700;font-size:12px}
-      ul{padding-left:18px;line-height:1.7}
-      .cover{padding:28px;border-radius:24px;background:linear-gradient(135deg,#f8faff,#eaf0fb);border:1px solid #dbe3ef;box-shadow:0 12px 36px rgba(15,23,42,.06)}
-      .cover h1{font-size:34px}.cover p{max-width:720px}
-      .chart-box{margin-top:16px;padding:18px;border:1px solid #dbe3ef;border-radius:18px;background:#fff}
-      .page-break{page-break-before:always}
-    </style></head><body>
-      <section class="cover">
-        <p class="badge">${APP_NAME} category report</p>
-        <h1>${state.category}</h1>
-        <p class="muted">${formatDate(latestNavDateForCategory(state.category))} | ${datasetLabel()} | Built from the Excel-backed dashboard logic for category-level review, ranking, and fund comparison.</p>
-      </section>
-      <div class="grid">
-        <div class="card"><h3>Category</h3><p>${state.category}</p></div>
-        <div class="card"><h3>Total Funds</h3><p>${summary.totalFunds}</p></div>
-        <div class="card"><h3>Average Score</h3><p>${summary.categoryAverageScore.toFixed(1)}</p></div>
-        <div class="card"><h3>Average Return</h3><p>${summary.categoryAverageReturn.toFixed(1)}%</p></div>
+  const topFund = topFunds[0] || fund;
+  const avgVol = categoryFunds.length
+    ? categoryFunds.reduce((sum, item) => sum + (riskOf(item) || 0), 0) / categoryFunds.length
+    : 0;
+  const riskLevel = avgVol <= 10 ? "Low" : (avgVol <= 18 ? "Moderate" : "High");
+  const medianRisk = reportMedian(categoryFunds.map((item) => riskOf(item)).filter((value) => value !== null));
+  const medianReturn = reportMedian(categoryFunds.map((item) => reportNumber(item.threeYear) * 100).filter((value) => Number.isFinite(value)));
+  const threeYearValues = categoryFunds
+    .map((item) => reportNumber(item.threeYear))
+    .filter((value) => value !== null);
+  const avgThreeYear = threeYearValues.length
+    ? threeYearValues.reduce((sum, value) => sum + value, 0) / threeYearValues.length * 100
+    : 0;
+  const topScoreGap = topFunds.length > 1 ? Math.max(0, scoreOf(topFunds[0]) - scoreOf(topFunds[1])) : 0;
+  const lowVolFunds = [...categoryFunds]
+    .filter((item) => riskOf(item) !== null)
+    .sort((a, b) => riskOf(a) - riskOf(b))
+    .slice(0, 3)
+    .map((item) => reportShortName(item.fundName));
+  const fiveYearCount = categoryFunds.filter((item) => reportNumber(item.fiveYear) !== null).length;
+  const weights = window.FUND_SCHEMA?.scoring?.modern?.weights || window.FUND_SCHEMA?.scoring?.weights || {};
+  const reportData = {
+    category: state.category,
+    dateLabel: formatDate(latestNavDateForCategory(state.category)),
+    datasetLabel: datasetLabel(),
+    generatedAt: new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }),
+    totalFunds: summary.totalFunds || categoryFunds.length,
+    avgScore: Number(summary.categoryAverageScore || 0),
+    avgOneYear: Number(summary.categoryAverageReturn || 0),
+    avgThreeYear,
+    riskLevel,
+    avgVol,
+    medianRisk,
+    medianReturn,
+    topLeader: topFund ? reportShortName(topFund.fundName) : "Category leader",
+    topScoreGap,
+    lowVolFunds,
+    fiveYearCount,
+    weights,
+    top10: topFunds.map((item, index) => ({
+      rank: index + 1,
+      fundName: item.fundName,
+      shortName: reportShortName(item.fundName).slice(0, 32),
+      score: scoreOf(item),
+      oneYear: reportNumber(item.oneYear),
+      threeYear: reportNumber(item.threeYear),
+      fiveYear: reportNumber(item.fiveYear),
+      volatility: riskOf(item),
+      sharpe: reportMetric(item, "sharpe"),
+      pe: reportMetric(item, "pe"),
+      pb: reportMetric(item, "pb"),
+      sortino: reportMetric(item, "sortino"),
+      trend: reportTrendArrow(item),
+      color: reportScoreColor(scoreOf(item))
+    })),
+    scatter: categoryFunds.map((item, index) => ({
+      x: riskOf(item),
+      y: reportNumber(item.threeYear) === null ? null : reportNumber(item.threeYear) * 100,
+      fundName: item.fundName,
+      label: reportShortName(item.fundName).split(" ").slice(0, 3).join(" "),
+      rank: item.rank || index + 1,
+      score: scoreOf(item),
+      top3: (item.rank || index + 1) <= 3
+    })).filter((item) => item.x !== null && item.y !== null),
+    trend: mergedFundHistory(topFund).slice(-6).map((point, index) => ({
+      label: point?.date ? point.date.slice(5) : `P${index + 1}`,
+      score: reportNumber(point?.score) ?? scoreOf(topFund),
+      oneYear: reportNumber(point?.oneYear) === null ? null : reportNumber(point.oneYear) * 100
+    })),
+    radar: {
+      fundName: topFund?.fundName || "",
+      labels: ["1Y Return", "3Y CAGR", "5Y CAGR", "Sharpe", "PE", "PB", "Sortino"],
+      values: [
+        reportNormalisedScore(topFund, "oneYear", categoryFunds),
+        reportNormalisedScore(topFund, "threeYear", categoryFunds),
+        reportNormalisedScore(topFund, "fiveYear", categoryFunds),
+        reportNormalisedScore(topFund, "sharpe", categoryFunds),
+        reportNormalisedScore(topFund, "pe", categoryFunds, true),
+        reportNormalisedScore(topFund, "pb", categoryFunds, true),
+        reportNormalisedScore(topFund, "sortino", categoryFunds)
+      ]
+    }
+  };
+  const payload = JSON.stringify(reportData).replaceAll("</", "<\\/");
+  const leagueRows = reportData.top10.map((item, index) => {
+    const medal = index === 0 ? "gold" : (index === 1 ? "silver" : (index === 2 ? "bronze" : ""));
+    return `<tr class="${medal}">
+      <td data-sort="${item.rank}">#${item.rank}</td>
+      <td>${escapeHtml(item.fundName)}</td>
+      <td data-sort="${item.score}"><span class="score-cell"><i style="width:${Math.max(0, Math.min(100, item.score))}%;background:${item.color}"></i></span><strong>${scoreLabel(item.score)}</strong></td>
+      <td data-sort="${item.oneYear ?? -999}">${reportPct(item.oneYear)}</td>
+      <td data-sort="${item.threeYear ?? -999}">${reportPct(item.threeYear)}</td>
+      <td data-sort="${item.fiveYear ?? -999}">${reportPct(item.fiveYear)}</td>
+      <td data-sort="${item.volatility ?? 999}">${item.volatility === null ? "-" : item.volatility.toFixed(1)}</td>
+      <td data-sort="${item.sharpe ?? -999}">${item.sharpe === null ? "-" : item.sharpe.toFixed(2)}</td>
+      <td data-sort="${item.pe ?? 999}">${item.pe === null ? "-" : item.pe.toFixed(2)}</td>
+      <td data-sort="${item.pb ?? 999}">${item.pb === null ? "-" : item.pb.toFixed(2)}</td>
+      <td data-sort="${item.sortino ?? -999}">${item.sortino === null ? "-" : item.sortino.toFixed(2)} <span class="trend">${item.trend}</span></td>
+    </tr>`;
+  }).join("");
+  const insightBullets = [
+    `Top fund leads #2 by ${topScoreGap.toFixed(1)} score points.`,
+    `Category average 3Y CAGR is ${avgThreeYear.toFixed(1)}% across available funds.`,
+    `Low-volatility standouts: ${lowVolFunds.length ? lowVolFunds.join(", ") : "not enough risk data"}.`,
+    `Funds with 5Y data available: ${fiveYearCount} of ${categoryFunds.length}.`
+  ];
+  const methodologyText = Object.keys(weights).length
+    ? Object.entries(weights).map(([key, value]) => `${key}: ${Math.round(Number(value) * 100)}%`).join(" | ")
+    : "Returns, consistency, relative performance, risk-adjusted metrics, valuation, and downside control.";
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${escapeHtml(APP_NAME)} ${escapeHtml(state.category)} Report</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>
+  <style>
+    :root{--navy:#0D1B2A;--paper:#FFFFFF;--paper-alt:#F4F7FB;--panel:#FFFFFF;--panel2:#ECF3FB;--blue:#1E90FF;--green:#00C896;--amber:#FFA500;--red:#FF5C5C;--ink:#102235;--muted:#5D7288;--line:rgba(13,27,42,.10)}
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--paper-alt);color:var(--ink);line-height:1.55}
+    .report{max-width:1180px;margin:0 auto;padding:28px}.hero{padding:30px;border-radius:26px;background:linear-gradient(135deg,#FFFFFF,#EEF5FF 58%,#E4F8F2);border:1px solid rgba(13,27,42,.10);box-shadow:0 18px 38px rgba(13,27,42,.08)}
+    .badge{display:inline-flex;gap:8px;align-items:center;padding:7px 12px;border-radius:999px;background:rgba(30,144,255,.10);border:1px solid rgba(30,144,255,.22);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--navy)}
+    h1{font-size:clamp(32px,5vw,58px);line-height:1.02;margin:18px 0 12px} h2{margin:0;font-size:24px} h3{margin:0 0 8px;font-size:16px}.sub{color:var(--muted);max-width:780px;margin:0}.section{margin-top:22px}.section-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;margin:0 0 12px}.section-head p{margin:4px 0 0;color:var(--muted)}
+    .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:20px}.card{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:18px;box-shadow:0 10px 24px rgba(13,27,42,.06)}
+    .kpi-label,.eyebrow{font-size:11px;color:var(--muted);font-weight:900;text-transform:uppercase;letter-spacing:.08em}.kpi-value{display:block;font-size:34px;font-weight:900;margin-top:7px}.green{color:var(--green)}.amber{color:var(--amber)}.blue{color:var(--blue)}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.chart-card{min-height:360px}.chart-wrap{position:relative;height:320px}.chart-wrap.tall{height:420px}.chart-note{color:var(--muted);font-size:13px;margin-top:8px}
+    table{width:100%;border-collapse:collapse;font-size:13px} th,td{padding:12px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle} th{color:var(--muted);cursor:pointer;text-transform:uppercase;font-size:11px;letter-spacing:.06em;user-select:none} tbody tr:hover{background:#F7FAFD} tr.gold{box-shadow:inset 4px 0 #FFD700} tr.silver{box-shadow:inset 4px 0 #C0C0C0} tr.bronze{box-shadow:inset 4px 0 #CD7F32}
+    .score-cell{display:inline-block;width:74px;height:8px;background:rgba(13,27,42,.10);border-radius:999px;overflow:hidden;margin-right:8px;vertical-align:middle}.score-cell i{display:block;height:100%;border-radius:inherit}.trend{font-weight:900;color:var(--blue);margin-left:6px}
+    .insights{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:0;padding:0;list-style:none}.insights li{padding:16px;border-radius:16px;background:var(--panel2);border:1px solid var(--line);color:var(--ink)}
+    .footer{margin-top:22px;padding:20px;border-radius:20px;background:var(--panel);border:1px solid var(--line);color:var(--muted)} .footer strong{color:var(--navy)}
+    .print-btn{position:fixed;right:22px;bottom:22px;border:0;border-radius:999px;background:linear-gradient(135deg,var(--blue),var(--green));color:#fff;font-weight:900;padding:13px 18px;box-shadow:0 14px 34px rgba(30,144,255,.3);cursor:pointer}
+    @media(max-width:760px){.report{padding:16px}.kpis,.grid,.insights{grid-template-columns:1fr}.section-head{display:block}.chart-wrap,.chart-wrap.tall{height:300px} table{font-size:12px}.table-scroll{overflow-x:auto}.print-btn{display:none}}
+    @media print{body{background:#FFFFFF;-webkit-print-color-adjust:exact;print-color-adjust:exact}.print-btn{display:none}.report{max-width:none;padding:18px}.card,.hero{break-inside:avoid;box-shadow:none}.page-break{break-before:page}}
+  </style>
+</head>
+<body>
+  <main class="report">
+    <section class="hero">
+      <span class="badge">Funalytics category report</span>
+      <h1>${escapeHtml(state.category)}</h1>
+      <p class="sub">${escapeHtml(reportData.dateLabel)} | ${escapeHtml(reportData.datasetLabel)} | ${reportData.totalFunds} funds analysed. Generated ${escapeHtml(reportData.generatedAt)}.</p>
+      <div class="kpis">
+        <div class="card"><span class="kpi-label">Category Average Score</span><strong class="kpi-value blue">${reportData.avgScore.toFixed(1)}</strong></div>
+        <div class="card"><span class="kpi-label">Average 1Y Return</span><strong class="kpi-value green">${reportData.avgOneYear.toFixed(1)}%</strong></div>
+        <div class="card"><span class="kpi-label">Category Risk Level</span><strong class="kpi-value amber">${escapeHtml(riskLevel)}</strong></div>
       </div>
-      <div class="card wide"><h2>Executive Summary</h2><p class="muted">${state.category} contains ${summary.totalFunds} analysed funds. The category leader is <strong>${escapeHtml(summary.topPerformer)}</strong>, while the selected reference fund is <strong>${escapeHtml(fund.fundName)}</strong> at rank #${fund.rank} with dashboard score ${scoreLabel(scoreOf(fund))}. Use the league table and historical section below for deeper analysis.</p></div>
-      <div class="chart-box">${buildMiniReportChart(chartFunds)}</div>
-      <div class="two">
-        <div class="card"><h2>Selected Fund Snapshot</h2><p><span class="badge">Rank #${fund.rank}</span></p><p class="muted">Dashboard score ${scoreLabel(scoreOf(fund))} | ${horizonLabel()} ${formatPct(fund[state.horizon])} | ${riskLabel(fund)} | ${fund.trend}</p></div>
-        <div class="card"><h2>Category Leader</h2><p><span class="badge">${escapeHtml(summary.topPerformer)}</span></p><p class="muted">Top category score ${scoreLabel(summary.topScore)} with ${summary.topTrend.toLowerCase()} trend.</p></div>
-      </div>
-      <div class="card wide page-break"><h2>Top 10 Funds In Category</h2><table><thead><tr><th>Rank</th><th>Fund</th><th>Score</th><th>1Y</th><th>3Y</th><th>5Y</th><th>Risk</th></tr></thead><tbody>${leagueTable}</tbody></table></div>
-      <div class="card wide"><h2>Selected Fund Historical Data</h2><table><thead><tr><th>Date</th><th>Score</th><th>1Y</th><th>3Y</th><th>5Y</th></tr></thead><tbody>${rows}</tbody></table></div>
-      <div class="card wide"><h2>How To Read This Report</h2><ul><li><strong>Dashboard Score</strong> summarizes workbook-driven ranking logic.</li><li><strong>Rank</strong> compares funds within the selected category.</li><li><strong>Risk Indicator</strong> reflects score volatility across available periods.</li><li><strong>Returns</strong> help compare shorter and longer horizon performance.</li></ul></div>
-      <div class="card wide"><h2>Methodology</h2><p class="muted">This report is generated from the Excel-backed dashboard logic using category-filtered data, rank-based weighted scoring, and available period histories from the workbook sheets. It is designed to support user-led analysis, not to provide financial advice.</p></div>
-    </body></html>
-  `;
+    </section>
+
+    <section class="section card chart-card">
+      <div class="section-head"><div><p class="eyebrow">Category Snapshot</p><h2>Top 10 funds by score</h2><p>Score strength, color-coded for quick reading.</p></div></div>
+      <div class="chart-wrap tall"><canvas id="scoreBar"></canvas></div>
+    </section>
+
+    <section class="section grid">
+      <div class="card chart-card"><div class="section-head"><div><p class="eyebrow">Risk vs Return</p><h2>3Y CAGR against volatility</h2><p>Top-left is the ideal zone: higher return with lower risk.</p></div></div><div class="chart-wrap"><canvas id="riskScatter"></canvas></div></div>
+      <div class="card chart-card"><div class="section-head"><div><p class="eyebrow">Score Breakdown</p><h2>Category leader radar</h2><p>Seven drivers normalized to a 0-10 scale.</p></div></div><div class="chart-wrap"><canvas id="radarChart"></canvas></div></div>
+    </section>
+
+    <section class="section card page-break">
+      <div class="section-head"><div><p class="eyebrow">League Table</p><h2>Top 10 funds</h2><p>Click any column heading to sort inside this report.</p></div></div>
+      <div class="table-scroll"><table id="leagueTable"><thead><tr><th>Rank</th><th>Fund Name</th><th>Score</th><th>1Y</th><th>3Y</th><th>5Y</th><th>Vol</th><th>Sharpe</th><th>PE</th><th>PB</th><th>Sortino</th></tr></thead><tbody>${leagueRows}</tbody></table></div>
+    </section>
+
+    <section class="section card chart-card">
+      <div class="section-head"><div><p class="eyebrow">Historical Trend</p><h2>${escapeHtml(reportShortName(topFund?.fundName || "Category leader"))}</h2><p>Score and 1Y return movement across the last available periods.</p></div></div>
+      <div class="chart-wrap"><canvas id="historyChart"></canvas></div>
+      <p class="chart-note" id="historyNote"></p>
+    </section>
+
+    <section class="section card">
+      <div class="section-head"><div><p class="eyebrow">Category Intelligence Summary</p><h2>What the numbers say</h2><p>Simple observations generated from the selected category.</p></div></div>
+      <ul class="insights">${insightBullets.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+    </section>
+
+    <footer class="footer">
+      <p><strong>Methodology:</strong> ${escapeHtml(methodologyText)}</p>
+      <p><strong>Disclaimer:</strong> For analytical purposes only. Not financial advice.</p>
+      <p>Generated by Funalytics</p>
+    </footer>
+  </main>
+  <button class="print-btn" type="button" onclick="window.print()">Generate PDF</button>
+  <script>
+    const report = ${payload};
+    const css = getComputedStyle(document.documentElement);
+    const colors = {
+      navy: css.getPropertyValue("--navy").trim(),
+      blue: css.getPropertyValue("--blue").trim(),
+      green: css.getPropertyValue("--green").trim(),
+      amber: css.getPropertyValue("--amber").trim(),
+      red: css.getPropertyValue("--red").trim(),
+      muted: css.getPropertyValue("--muted").trim(),
+      grid: "rgba(255,255,255,.12)",
+      white: "#FFFFFF"
+    };
+    Chart.defaults.color = colors.muted;
+    Chart.defaults.borderColor = colors.grid;
+    Chart.defaults.font.family = "Inter, system-ui, sans-serif";
+
+    const medianPlugin = {
+      id: "medianQuadrants",
+      afterDraw(chart) {
+        if (chart.canvas.id !== "riskScatter") return;
+        const x = chart.scales.x;
+        const y = chart.scales.y;
+        const ctx = chart.ctx;
+        const mx = x.getPixelForValue(report.medianRisk);
+        const my = y.getPixelForValue(report.medianReturn);
+        ctx.save();
+        ctx.setLineDash([6, 6]);
+        ctx.strokeStyle = "rgba(255,255,255,.28)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(mx, chart.chartArea.top);
+        ctx.lineTo(mx, chart.chartArea.bottom);
+        ctx.moveTo(chart.chartArea.left, my);
+        ctx.lineTo(chart.chartArea.right, my);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = "rgba(255,255,255,.78)";
+        ctx.font = "700 11px Inter, system-ui";
+        ctx.fillText("High Return Low Risk", chart.chartArea.left + 8, chart.chartArea.top + 16);
+        ctx.fillText("High Return High Risk", Math.min(mx + 8, chart.chartArea.right - 148), chart.chartArea.top + 16);
+        ctx.fillText("Low Return Low Risk", chart.chartArea.left + 8, Math.min(my + 18, chart.chartArea.bottom - 8));
+        ctx.fillText("Low Return High Risk", Math.min(mx + 8, chart.chartArea.right - 138), Math.min(my + 18, chart.chartArea.bottom - 8));
+        ctx.restore();
+      }
+    };
+    const barValuePlugin = {
+      id: "barValueLabels",
+      afterDatasetsDraw(chart) {
+        if (chart.canvas.id !== "scoreBar") return;
+        const ctx = chart.ctx;
+        ctx.save();
+        ctx.font = "900 12px Inter, system-ui";
+        ctx.fillStyle = "#FFFFFF";
+        chart.getDatasetMeta(0).data.forEach((bar, index) => {
+          const value = report.top10[index]?.score ?? 0;
+          const x = Math.min(bar.x + 8, chart.chartArea.right - 32);
+          ctx.fillText(String(Math.round(value)), x, bar.y + 4);
+        });
+        ctx.restore();
+      }
+    };
+    const scatterLabelPlugin = {
+      id: "scatterPointLabels",
+      afterDatasetsDraw(chart) {
+        if (chart.canvas.id !== "riskScatter") return;
+        const ctx = chart.ctx;
+        ctx.save();
+        ctx.font = "800 10px Inter, system-ui";
+        ctx.fillStyle = "rgba(255,255,255,.78)";
+        chart.getDatasetMeta(0).data.forEach((point, index) => {
+          const raw = report.scatter[index];
+          if (!raw?.top3) return;
+          ctx.fillText(raw.label, point.x + 8, point.y - 8);
+        });
+        ctx.restore();
+      }
+    };
+    Chart.register(medianPlugin, barValuePlugin, scatterLabelPlugin);
+
+    new Chart(document.getElementById("scoreBar"), {
+      type: "bar",
+      data: {
+        labels: report.top10.map(item => item.shortName),
+        datasets: [{ label: "Score", data: report.top10.map(item => item.score), backgroundColor: report.top10.map(item => item.color), borderRadius: 10 }]
+      },
+      options: { indexAxis: "y", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: true } }, scales: { x: { min: 0, max: 100, grid: { color: colors.grid } }, y: { grid: { display: false } } } }
+    });
+
+    new Chart(document.getElementById("riskScatter"), {
+      type: "scatter",
+      data: { datasets: [{
+        label: "Funds",
+        data: report.scatter,
+        parsing: false,
+        pointRadius: ctx => ctx.raw.top3 ? 7 : 4,
+        pointBackgroundColor: ctx => ctx.raw.top3 ? colors.amber : colors.blue,
+        pointBorderColor: ctx => ctx.raw.top3 ? colors.white : colors.blue
+      }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.raw.label + ": " + ctx.raw.y.toFixed(1) + "% 3Y, " + ctx.raw.x.toFixed(1) + " vol" } } }, scales: { x: { title: { display: true, text: "Volatility / Risk" } }, y: { title: { display: true, text: "3Y CAGR" }, ticks: { callback: value => value + "%" } } } }
+    });
+
+    const trendLabels = report.trend.map(item => item.label);
+    const trendScores = report.trend.map(item => item.score);
+    const trendReturns = report.trend.map(item => item.oneYear);
+    if (report.trend.length <= 1) document.getElementById("historyNote").textContent = "Only one historical point is available, so this is shown as a single latest marker.";
+    new Chart(document.getElementById("historyChart"), {
+      type: "line",
+      data: { labels: trendLabels, datasets: [
+        { label: "Score", data: trendScores, yAxisID: "y", borderColor: colors.blue, backgroundColor: "rgba(30,144,255,.18)", tension: .35, pointRadius: report.trend.length <= 1 ? 7 : 4 },
+        { label: "1Y Return", data: trendReturns, yAxisID: "y1", borderColor: colors.green, backgroundColor: "rgba(0,200,150,.16)", tension: .35, pointRadius: report.trend.length <= 1 ? 7 : 4 }
+      ] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { tooltip: { enabled: true } }, scales: { y: { position: "left", title: { display: true, text: "Score" } }, y1: { position: "right", grid: { drawOnChartArea: false }, title: { display: true, text: "1Y Return %" } } } }
+    });
+
+    new Chart(document.getElementById("radarChart"), {
+      type: "radar",
+      data: { labels: report.radar.labels, datasets: [{ label: report.radar.fundName, data: report.radar.values, borderColor: colors.green, backgroundColor: "rgba(0,200,150,.24)", pointBackgroundColor: colors.white }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { tooltip: { enabled: true } }, scales: { r: { min: 0, max: 10, ticks: { stepSize: 2, backdropColor: "transparent" }, grid: { color: colors.grid }, angleLines: { color: colors.grid } } } }
+    });
+
+    document.querySelectorAll("#leagueTable th").forEach((th, index) => {
+      th.addEventListener("click", () => {
+        const tbody = th.closest("table").querySelector("tbody");
+        const rows = Array.from(tbody.querySelectorAll("tr"));
+        const nextDir = th.dataset.dir === "asc" ? "desc" : "asc";
+        document.querySelectorAll("#leagueTable th").forEach(item => item.dataset.dir = "");
+        th.dataset.dir = nextDir;
+        rows.sort((a, b) => {
+          const av = a.children[index].dataset.sort ?? a.children[index].textContent;
+          const bv = b.children[index].dataset.sort ?? b.children[index].textContent;
+          const an = Number(av);
+          const bn = Number(bv);
+          const result = Number.isFinite(an) && Number.isFinite(bn) ? an - bn : String(av).localeCompare(String(bv));
+          return nextDir === "asc" ? result : -result;
+        });
+        rows.forEach(row => tbody.appendChild(row));
+      });
+    });
+
+    window.addEventListener("load", () => setTimeout(() => window.print(), 900));
+  <\/script>
+</body>
+</html>`;
 };
 
 const syncStateToData = () => {
@@ -4001,7 +4327,7 @@ $("searchInput").addEventListener("input", (event) => {
     searchInputTimer = 0;
     state.query = nextValue;
     renderFunds();
-  }, 70);
+  }, 120);
 });
 
   $("clearSearch").addEventListener("click", () => {
@@ -4114,7 +4440,6 @@ $("searchInput").addEventListener("input", (event) => {
     reportWindow.document.write(buildReportHtml());
     reportWindow.document.close();
     reportWindow.focus();
-    setTimeout(() => reportWindow.print(), 300);
   });
 
   window.addEventListener("beforeinstallprompt", (event) => {

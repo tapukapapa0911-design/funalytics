@@ -44,18 +44,26 @@ window.LiveDataVersion.dataMapper = (() => {
   };
 
   const localIsoDate = (date = new Date()) => {
+    const raw = String(date || "").trim();
+    const plainDate = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (plainDate) return `${plainDate[1]}-${plainDate[2]}-${plainDate[3]}`;
     const value = date instanceof Date ? date : new Date(date);
     if (Number.isNaN(value.getTime())) return "";
-    const year = value.getFullYear();
-    const month = String(value.getMonth() + 1).padStart(2, "0");
-    const day = String(value.getDate()).padStart(2, "0");
+    const year = value.getUTCFullYear();
+    const month = String(value.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(value.getUTCDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   };
 
   const displayNavCutoffDate = () => {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 1);
-    return localIsoDate(cutoff);
+    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+    const nowIST = new Date(Date.now() + IST_OFFSET_MS);
+    const cutoffIST = new Date(Date.UTC(
+      nowIST.getUTCFullYear(),
+      nowIST.getUTCMonth(),
+      nowIST.getUTCDate() - 1
+    ));
+    return localIsoDate(cutoffIST);
   };
 
   const isDisplayEligibleNavDate = (value) => {

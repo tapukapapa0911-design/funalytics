@@ -3,9 +3,9 @@
   --fade-color: rgba(11,15,26,0.9);
   --fade-solid: #0b0f1a;
   --motion-snap: cubic-bezier(0.2, 0.9, 0.22, 1);
-  --motion-fast: 90ms;
-  --motion-base: 125ms;
-  --motion-slow: 155ms;
+  --motion-fast: 110ms;
+  --motion-base: 150ms;
+  --motion-slow: 190ms;
   --nav-base-height: 60px;
   --nav-safe-bottom: env(safe-area-inset-bottom, 0px);
   --nav-float-gap: 14px;
@@ -9942,7 +9942,8 @@ textarea,
 }
 
 .screen.active {
-  animation: screenInSilky 220ms var(--ios-ease-out) both !important;
+  animation: screenInSilky 200ms var(--ios-ease-out) both !important;
+  will-change: opacity, transform;
 }
 
 .screen:not(.active) {
@@ -9952,14 +9953,15 @@ textarea,
 }
 
 .screen.active > * {
-  animation: cardRiseSoft 260ms var(--ios-ease-out) both !important;
+  animation: cardRiseSoft 240ms var(--ios-ease-out) both !important;
+  will-change: opacity, transform;
 }
 
-.screen.active > *:nth-child(2) { animation-delay: 14ms !important; }
-.screen.active > *:nth-child(3) { animation-delay: 28ms !important; }
-.screen.active > *:nth-child(4) { animation-delay: 42ms !important; }
-.screen.active > *:nth-child(5) { animation-delay: 56ms !important; }
-.screen.active > *:nth-child(6) { animation-delay: 70ms !important; }
+.screen.active > *:nth-child(2) { animation-delay: 10ms !important; }
+.screen.active > *:nth-child(3) { animation-delay: 20ms !important; }
+.screen.active > *:nth-child(4) { animation-delay: 30ms !important; }
+.screen.active > *:nth-child(5) { animation-delay: 40ms !important; }
+.screen.active > *:nth-child(6) { animation-delay: 50ms !important; }
 
 @keyframes screenInSilky {
   from {
@@ -9989,6 +9991,7 @@ textarea,
     border-color 220ms var(--ios-ease-out),
     box-shadow 220ms var(--ios-ease-out),
     transform 220ms var(--ios-ease-out) !important;
+  will-change: transform, opacity;
 }
 
 .bottom-nav button,
@@ -10021,6 +10024,8 @@ textarea,
     border-color 190ms var(--ios-ease-press),
     box-shadow 190ms var(--ios-ease-press),
     color 190ms var(--ios-ease-press) !important;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .bottom-nav button:active,
@@ -10086,7 +10091,7 @@ textarea,
 .skeleton-card,
 .loading-shimmer {
   background-size: 220% 100% !important;
-  animation-duration: 1350ms !important;
+  animation-duration: 1200ms !important;
   animation-timing-function: linear !important;
 }
 
@@ -10123,6 +10128,7 @@ textarea,
   .category-panel,
   .planner-results {
     animation: none !important;
+    will-change: auto !important;
   }
 
   .bottom-nav,

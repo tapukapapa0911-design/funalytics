@@ -145,7 +145,10 @@
       const fmtDate = (iso) => {
         const raw = String(iso || "").trim();
         if (!raw) return "--";
-        const date = new Date(raw.length <= 10 ? `${raw}T00:00:00` : raw);
+        const plainDate = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        const date = plainDate
+          ? new Date(Date.UTC(Number(plainDate[1]), Number(plainDate[2]) - 1, Number(plainDate[3])))
+          : new Date(raw);
         if (Number.isNaN(date.getTime())) return raw;
         return date.toLocaleString("en-GB", {
           day: "numeric",
@@ -153,6 +156,7 @@
           year: "numeric",
           hour: raw.length > 10 ? "2-digit" : undefined,
           minute: raw.length > 10 ? "2-digit" : undefined
+          , timeZone: "UTC"
         });
       };
 
@@ -167,6 +171,12 @@
         .replaceAll("<", "&lt;")
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;");
+
+      const latestItemDate = (items = []) => items
+        .map((item) => String(item?.date || item?.navDate || "").slice(0, 10))
+        .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+        .sort()
+        .at(-1) || "";
 
       async function fetchJson(url) {
         const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(15000) });
@@ -187,7 +197,7 @@
           ]);
 
           const items = Array.isArray(nav?.items) ? nav.items : [];
-          const latestDate = String(nav?.latestDate || "").trim();
+          const latestDate = latestItemDate(items) || String(nav?.latestDate || "").trim();
 
           document.getElementById("latestDate").textContent = fmtDate(latestDate);
           document.getElementById("generatedAt").textContent = `generatedAt: ${fmtDate(nav?.generatedAt || "")}`;

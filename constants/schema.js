@@ -19,7 +19,7 @@ window.LiveDataVersion.schema = {
     navMatchMapKey: "live-funalytics-nav-match-map-v8",
     navResolverKey: "live-funalytics-nav-resolver-cache-v8",
     navFallbackKey: "live-funalytics-nav-fallback-cache-v8",
-    datasetKey: "fundpulse-live-data-v8",
+    datasetKey: "fundpulse-live-data-v10",
     ttlMs: 15 * 60 * 1000,
     hardTtlMs: 60 * 60 * 1000,
     navTtlMs: 15 * 60 * 1000,

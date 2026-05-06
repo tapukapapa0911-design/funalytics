@@ -17,18 +17,26 @@ window.LiveDataVersion.dataProvider = (() => {
 
   const localIsoDate = (value) => {
     if (value === null || value === undefined || value === "") return "";
+    const raw = String(value).trim();
+    const plainDate = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (plainDate) return `${plainDate[1]}-${plainDate[2]}-${plainDate[3]}`;
     const date = value instanceof Date ? value : new Date(value);
     if (Number.isNaN(date.getTime()) || date.getUTCFullYear() < 2000) return "";
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(date.getUTCDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   };
 
   const displayNavCutoffDate = () => {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 1);
-    return localIsoDate(cutoff);
+    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+    const nowIST = new Date(Date.now() + IST_OFFSET_MS);
+    const cutoffIST = new Date(Date.UTC(
+      nowIST.getUTCFullYear(),
+      nowIST.getUTCMonth(),
+      nowIST.getUTCDate() - 1
+    ));
+    return localIsoDate(cutoffIST);
   };
 
   const isDisplayEligibleNavDate = (value) => {
@@ -85,7 +93,8 @@ window.LiveDataVersion.dataProvider = (() => {
   const dateValue = (value) => {
     const iso = localIsoDate(value);
     if (!iso) return 0;
-    const parsed = new Date(`${iso}T00:00:00`);
+    const [year, month, day] = iso.split("-").map(Number);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
     return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
   };
 
@@ -117,11 +126,11 @@ window.LiveDataVersion.dataProvider = (() => {
 
   const sanitizeDatasetDates = (data, fallbackData) => {
     const safe = ensureAppShape(data, fallbackData);
-    const matchedFundDate = modeDateFromValues((safe?.funds || []).map((fund) => fund?.liveNavDate));
-    const authoritativeDate = matchedFundDate || latestDateFromRows(
+    const matchedFundDate = latestDateFromRows(
       (safe?.funds || []).map((fund) => ({ latestDate: fund?.liveNavDate || fund?.latestNavDate || null })),
       safe?.liveNavDate || fallbackData?.liveNavDate || ""
     );
+    const authoritativeDate = matchedFundDate || modeDateFromValues((safe?.funds || []).map((fund) => fund?.liveNavDate));
     if (!authoritativeDate || safe.liveNavDate === authoritativeDate) return safe;
     return { ...safe, liveNavDate: authoritativeDate };
   };
@@ -173,7 +182,8 @@ window.LiveDataVersion.dataProvider = (() => {
 
     const snapshotDate = latestSnapshotDate();
     if (!snapshotDate) return false;
-    const parsed = new Date(`${snapshotDate}T00:00:00`);
+    const [year, month, day] = snapshotDate.split("-").map(Number);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
     if (Number.isNaN(parsed.getTime())) return false;
     return Date.now() - parsed.getTime() <= RECENT_SNAPSHOT_WINDOW_MS;
   };
@@ -200,7 +210,8 @@ window.LiveDataVersion.dataProvider = (() => {
     const snapshotRows = snapshotRowsIfFresherThanBackup(backupData?.liveNavDate || backupData?.latestDate);
     if (!snapshotRows.length) return null;
     const { data: merged } = mapper.mergeLatestNavSync(backupData, snapshotRows);
-    merged.liveNavDate = modeDateFromValues((merged.funds || []).map((fund) => fund?.liveNavDate))
+    merged.liveNavDate = latestDateFromRows((merged.funds || []).map((fund) => ({ latestDate: fund?.liveNavDate || fund?.latestNavDate || null })))
+      || modeDateFromValues((merged.funds || []).map((fund) => fund?.liveNavDate))
       || latestSnapshotDate()
       || latestDateFromRows(snapshotRows, merged.liveNavDate || backupData.liveNavDate || "");
     merged.liveNavStatus = "fresh";
@@ -213,7 +224,8 @@ window.LiveDataVersion.dataProvider = (() => {
       : snapshotRowsIfFresherThanBackup(backupData?.liveNavDate || backupData?.latestDate);
     if (!snapshotRows.length) return null;
     const { data: merged } = await mapper.mergeLatestNav(backupData, snapshotRows);
-    merged.liveNavDate = modeDateFromValues((merged.funds || []).map((fund) => fund?.liveNavDate))
+    merged.liveNavDate = latestDateFromRows((merged.funds || []).map((fund) => ({ latestDate: fund?.liveNavDate || fund?.latestNavDate || null })))
+      || modeDateFromValues((merged.funds || []).map((fund) => fund?.liveNavDate))
       || modeDateFromRows(snapshotRows)
       || (isDisplayEligibleNavDate(snapshotPayload?.latestDate) ? localIsoDate(snapshotPayload?.latestDate) : "")
       || latestSnapshotDate()
@@ -262,7 +274,8 @@ window.LiveDataVersion.dataProvider = (() => {
         return persistDataset(ensureAppShape({ ...fallback, liveNavStatus: "last-available" }, safeBackup));
       }
       const { data: merged } = await mapper.mergeLatestNav(safeBackup, eligibleNavRows);
-      merged.liveNavDate = modeDateFromValues((merged.funds || []).map((fund) => fund?.liveNavDate))
+      merged.liveNavDate = latestDateFromRows((merged.funds || []).map((fund) => ({ latestDate: fund?.liveNavDate || fund?.latestNavDate || null })))
+        || modeDateFromValues((merged.funds || []).map((fund) => fund?.liveNavDate))
         || modeDateFromRows(eligibleNavRows)
         || (isDisplayEligibleNavDate(snapshot?.latestDate) ? localIsoDate(snapshot?.latestDate) : "")
         || latestDateFromRows(eligibleNavRows, merged.liveNavDate || safeBackup.liveNavDate || "");

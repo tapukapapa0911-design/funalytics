@@ -1,6 +1,6 @@
-﻿(async () => {
+(async () => {
   const MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000;
-  const BUILD_VERSION = "live-nav-v38";
+const BUILD_VERSION = "live-nav-v100";
   const LAST_SYNCED_DATE_KEY = "lastSyncedDate";
   const LAST_SYNC_ATTEMPT_KEY = "lastSyncAttempt";
   const CACHED_NAV_DATE_KEY = "cachedNavDate";
@@ -66,10 +66,10 @@
   };
 
   const localTodayIso = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
+    const now = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    const year = now.getUTCFullYear();
+    const month = String(now.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(now.getUTCDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   };
 
@@ -192,7 +192,9 @@
     if (!cacheApi || !schema?.cache) return;
     cacheApi.purgeStaleByPrefix?.("live-funalytics", MAX_CACHE_AGE_MS);
     cacheApi.purgeKeysOlderThan?.([schema.cache.datasetKey], MAX_CACHE_AGE_MS);
-    cacheApi.purgeKeysOlderThan?.(["fundpulse-live-data-v8"], MAX_CACHE_AGE_MS);
+    cacheApi.purgeKeysOlderThan?.(["fundpulse-live-data-v10"], MAX_CACHE_AGE_MS);
+    cacheApi.remove?.("fundpulse-live-data-v9");
+    cacheApi.remove?.("fundpulse-live-data-v8");
     cacheApi.remove?.("fundpulse-live-data-v5");
     cacheApi.remove?.("fundpulse-live-data-v6");
     cacheApi.remove?.("fundpulse-live-data-v7");
@@ -250,7 +252,7 @@
   if (!dataProvider) {
     console.warn("[live-data-version] dataProvider unavailable during bootstrap; using backup data");
     window.FUND_APP_DATA = backupData;
-      await loadScript("./src/app.js?v=live-nav-v93");
+    await loadScript("./src/app.js?v=live-nav-v100");
     window.setTimeout(() => {
       loadOptionalScript("./assets/vendor/jszip.min.js")
         .then(() => loadOptionalScript("./src/workbook-import.js"));
@@ -265,7 +267,7 @@
     writeCachedNavDate(navDateOf(initialData));
   }
 
-      await loadScript("./src/app.js?v=live-nav-v93");
+    await loadScript("./src/app.js?v=live-nav-v100");
 
   window.setTimeout(() => {
     loadOptionalScript("./assets/vendor/jszip.min.js")
@@ -292,7 +294,7 @@
   const persistSyncedDataset = (data) => {
     if (!data?.funds?.length || !data?.summaries?.length) return;
     try {
-      localStorage.setItem("fundpulse-live-data-v8", JSON.stringify({
+      localStorage.setItem("fundpulse-live-data-v10", JSON.stringify({
         savedAt: Date.now(),
         data
       }));
@@ -375,9 +377,9 @@
         return false;
       }
     })();
-    if (completedToday && readLastSyncedDate() === localTodayIso()) return true;
     if (needsLiveNavHydration()) return false;
     if (!isRecentNavDate(navDateOf(window.FUND_APP_DATA))) return false;
+    if (completedToday && readLastSyncedDate() === localTodayIso()) return true;
     const lastAttemptAt = readLastSyncAttempt();
     if (lastAttemptAt && (Date.now() - lastAttemptAt) < NAV_SYNC_THROTTLE_MS) return true;
     return false;
@@ -525,5 +527,7 @@
     });
   });
 })();
+
+
 
 

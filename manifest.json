@@ -1,8 +1,8 @@
-﻿{
+{
   "name": "Funalytics",
   "short_name": "Funalytics",
   "description": "Mutual Fund Analytics Dashboard",
-  "start_url": "./index.html?v=93",
+  "start_url": "./index.html?v=100",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
@@ -23,4 +23,6 @@
     }
   ]
 }
+
+
 

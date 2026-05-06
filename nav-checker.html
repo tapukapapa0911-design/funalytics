@@ -156,9 +156,15 @@
 
       const fmtDate = (iso) => {
         if (!iso) return "--";
-        const date = new Date(`${iso}T00:00:00`);
-        if (Number.isNaN(date.getTime())) return iso;
-        return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+        const raw = String(iso || "").trim();
+        const plainDate = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (plainDate) {
+          const date = new Date(Date.UTC(Number(plainDate[1]), Number(plainDate[2]) - 1, Number(plainDate[3])));
+          return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+        }
+        const date = new Date(raw);
+        if (Number.isNaN(date.getTime())) return raw;
+        return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
       };
 
       const fmtDateTime = (iso) => {
@@ -167,6 +173,12 @@
         if (Number.isNaN(date.getTime())) return iso;
         return date.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
       };
+
+      const latestItemDate = (items = []) => items
+        .map((item) => String(item?.date || item?.navDate || "").slice(0, 10))
+        .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+        .sort()
+        .at(-1) || "";
 
       const setStatus = (text, tone) => {
         const el = document.getElementById("statusPill");
@@ -300,11 +312,7 @@
           const items = Array.isArray(payload.items) ? payload.items : [];
           latestItems = items;
           const appMatches = countAppMatches(items);
-          const latestDate = payload.latestDate || items
-            .map((item) => String(item.date || item.navDate || "").slice(0, 10))
-            .filter(Boolean)
-            .sort()
-            .at(-1) || "";
+          const latestDate = latestItemDate(items) || payload.latestDate || "";
 
           document.getElementById("latestDate").textContent = fmtDate(latestDate);
           document.getElementById("latestDateNote").textContent = latestDate
