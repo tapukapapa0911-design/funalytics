@@ -3433,6 +3433,15 @@ const showMainApp = () => {
   $("app")?.classList.remove("is-loading");
 };
 
+const updateOnboardingInstallButton = () => {
+  const button = $("onboardingInstallButton");
+  if (!button) return;
+  const promptReady = Boolean(deferredInstallPrompt);
+  button.disabled = !promptReady;
+  button.setAttribute("aria-disabled", promptReady ? "false" : "true");
+  button.textContent = promptReady ? "Install" : "Preparing...";
+};
+
 const loadDashboard = () => {
   ensureHashRoute();
   state.tab = routeFromHash();
@@ -3444,6 +3453,7 @@ const loadDashboard = () => {
 
 const enterApp = () => {
   loadDashboard();
+  updateOnboardingInstallButton();
   updateInstallButton();
   setUpdateBannerMessage("New update available • Tap to refresh");
   setUpdateBanner(false);
@@ -3518,6 +3528,7 @@ const showInstallCard = () => {
   overlay.setAttribute("aria-hidden", "false");
   currentOnboardingIndex = 0;
   updateOnboardingPosition(0);
+  updateOnboardingInstallButton();
   updateInstallButton();
 };
 
@@ -3532,6 +3543,7 @@ const showOnboardingSlides = () => {
   overlay.setAttribute("aria-hidden", "false");
   currentOnboardingIndex = 1;
   updateOnboardingPosition(1);
+  updateOnboardingInstallButton();
   updateInstallButton();
 };
 
@@ -3647,6 +3659,7 @@ const bindPullToRefreshGuard = () => {
 
 const updateInstallButton = () => {
   const button = profileInstallButtonEl();
+  updateOnboardingInstallButton();
   if (!button) return;
   const installed = isInstalledApp();
   if (installed || !canShowInstall || !deferredInstallPrompt) {
@@ -3908,14 +3921,14 @@ const buildReportHtml = () => {
   <title>${escapeHtml(APP_NAME)} ${escapeHtml(state.category)} Report</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>
   <style>
-    :root{--navy:#0D1B2A;--paper:#FFFFFF;--paper-alt:#F4F7FB;--panel:#FFFFFF;--panel2:#ECF3FB;--blue:#1E90FF;--green:#00C896;--amber:#FFA500;--red:#FF5C5C;--ink:#102235;--muted:#5D7288;--line:rgba(13,27,42,.10)}
+    :root{--navy:#0D1B2A;--paper:#FFFFFF;--paper-alt:#F4F7FB;--panel:#FFFFFF;--panel2:#ECF3FB;--blue:#1E90FF;--green:#00C896;--amber:#FFA500;--red:#FF5C5C;--ink:#102235;--muted:#5D7288;--line:rgba(13,27,42,.10);--grid:rgba(13,27,42,.14);--grid-strong:rgba(13,27,42,.22)}
     *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--paper-alt);color:var(--ink);line-height:1.55}
-    .report{max-width:1180px;margin:0 auto;padding:28px}.hero{padding:30px;border-radius:26px;background:linear-gradient(135deg,#FFFFFF,#EEF5FF 58%,#E4F8F2);border:1px solid rgba(13,27,42,.10);box-shadow:0 18px 38px rgba(13,27,42,.08)}
+    .report{max-width:1180px;margin:0 auto;padding:28px}.hero{padding:30px;border-radius:26px;background:linear-gradient(135deg,#FFFFFF 0%,#F3F8FF 54%,#ECFBF7 100%);border:1px solid rgba(13,27,42,.10);box-shadow:0 18px 38px rgba(13,27,42,.08)}
     .badge{display:inline-flex;gap:8px;align-items:center;padding:7px 12px;border-radius:999px;background:rgba(30,144,255,.10);border:1px solid rgba(30,144,255,.22);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--navy)}
     h1{font-size:clamp(32px,5vw,58px);line-height:1.02;margin:18px 0 12px} h2{margin:0;font-size:24px} h3{margin:0 0 8px;font-size:16px}.sub{color:var(--muted);max-width:780px;margin:0}.section{margin-top:22px}.section-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;margin:0 0 12px}.section-head p{margin:4px 0 0;color:var(--muted)}
     .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:20px}.card{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:18px;box-shadow:0 10px 24px rgba(13,27,42,.06)}
     .kpi-label,.eyebrow{font-size:11px;color:var(--muted);font-weight:900;text-transform:uppercase;letter-spacing:.08em}.kpi-value{display:block;font-size:34px;font-weight:900;margin-top:7px}.green{color:var(--green)}.amber{color:var(--amber)}.blue{color:var(--blue)}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.chart-card{min-height:360px}.chart-wrap{position:relative;height:320px}.chart-wrap.tall{height:420px}.chart-note{color:var(--muted);font-size:13px;margin-top:8px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.chart-card{min-height:360px}.chart-wrap{position:relative;height:320px}.chart-wrap.tall{height:420px}.chart-note{color:var(--muted);font-size:13px;margin-top:8px}.section{scroll-margin-top:24px}
     table{width:100%;border-collapse:collapse;font-size:13px} th,td{padding:12px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle} th{color:var(--muted);cursor:pointer;text-transform:uppercase;font-size:11px;letter-spacing:.06em;user-select:none} tbody tr:hover{background:#F7FAFD} tr.gold{box-shadow:inset 4px 0 #FFD700} tr.silver{box-shadow:inset 4px 0 #C0C0C0} tr.bronze{box-shadow:inset 4px 0 #CD7F32}
     .score-cell{display:inline-block;width:74px;height:8px;background:rgba(13,27,42,.10);border-radius:999px;overflow:hidden;margin-right:8px;vertical-align:middle}.score-cell i{display:block;height:100%;border-radius:inherit}.trend{font-weight:900;color:var(--blue);margin-left:6px}
     .insights{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:0;padding:0;list-style:none}.insights li{padding:16px;border-radius:16px;background:var(--panel2);border:1px solid var(--line);color:var(--ink)}
@@ -3980,8 +3993,10 @@ const buildReportHtml = () => {
       green: css.getPropertyValue("--green").trim(),
       amber: css.getPropertyValue("--amber").trim(),
       red: css.getPropertyValue("--red").trim(),
+      ink: css.getPropertyValue("--ink").trim(),
       muted: css.getPropertyValue("--muted").trim(),
-      grid: "rgba(255,255,255,.12)",
+      grid: css.getPropertyValue("--grid").trim(),
+      gridStrong: css.getPropertyValue("--grid-strong").trim(),
       white: "#FFFFFF"
     };
     Chart.defaults.color = colors.muted;
@@ -3999,7 +4014,7 @@ const buildReportHtml = () => {
         const my = y.getPixelForValue(report.medianReturn);
         ctx.save();
         ctx.setLineDash([6, 6]);
-        ctx.strokeStyle = "rgba(255,255,255,.28)";
+        ctx.strokeStyle = colors.gridStrong;
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(mx, chart.chartArea.top);
@@ -4008,7 +4023,7 @@ const buildReportHtml = () => {
         ctx.lineTo(chart.chartArea.right, my);
         ctx.stroke();
         ctx.setLineDash([]);
-        ctx.fillStyle = "rgba(255,255,255,.78)";
+        ctx.fillStyle = colors.muted;
         ctx.font = "700 11px Inter, system-ui";
         ctx.fillText("High Return Low Risk", chart.chartArea.left + 8, chart.chartArea.top + 16);
         ctx.fillText("High Return High Risk", Math.min(mx + 8, chart.chartArea.right - 148), chart.chartArea.top + 16);
@@ -4024,7 +4039,7 @@ const buildReportHtml = () => {
         const ctx = chart.ctx;
         ctx.save();
         ctx.font = "900 12px Inter, system-ui";
-        ctx.fillStyle = "#FFFFFF";
+        ctx.fillStyle = colors.ink;
         chart.getDatasetMeta(0).data.forEach((bar, index) => {
           const value = report.top10[index]?.score ?? 0;
           const x = Math.min(bar.x + 8, chart.chartArea.right - 32);
@@ -4040,7 +4055,7 @@ const buildReportHtml = () => {
         const ctx = chart.ctx;
         ctx.save();
         ctx.font = "800 10px Inter, system-ui";
-        ctx.fillStyle = "rgba(255,255,255,.78)";
+        ctx.fillStyle = colors.muted;
         chart.getDatasetMeta(0).data.forEach((point, index) => {
           const raw = report.scatter[index];
           if (!raw?.top3) return;
@@ -4068,7 +4083,8 @@ const buildReportHtml = () => {
         parsing: false,
         pointRadius: ctx => ctx.raw.top3 ? 7 : 4,
         pointBackgroundColor: ctx => ctx.raw.top3 ? colors.amber : colors.blue,
-        pointBorderColor: ctx => ctx.raw.top3 ? colors.white : colors.blue
+        pointBorderColor: ctx => ctx.raw.top3 ? colors.navy : colors.blue,
+        pointBorderWidth: ctx => ctx.raw.top3 ? 1.5 : 1
       }] },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.raw.label + ": " + ctx.raw.y.toFixed(1) + "% 3Y, " + ctx.raw.x.toFixed(1) + " vol" } } }, scales: { x: { title: { display: true, text: "Volatility / Risk" } }, y: { title: { display: true, text: "3Y CAGR" }, ticks: { callback: value => value + "%" } } } }
     });
@@ -4341,6 +4357,10 @@ $("searchInput").addEventListener("input", (event) => {
   });
 
   $("onboardingInstallButton")?.addEventListener("click", async () => {
+    if (!deferredInstallPrompt) {
+      updateOnboardingInstallButton();
+      return;
+    }
     if (deferredInstallPrompt) {
       deferredInstallPrompt.prompt();
       try {
