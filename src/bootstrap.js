@@ -378,7 +378,7 @@ const BUILD_VERSION = "live-nav-v100";
       }
     })();
     const syncedToday = completedToday && readLastSyncedDate() === localTodayIso();
-    if (syncedToday && hasUsableLiveNavData(window.FUND_APP_DATA)) return true;
+    if (syncedToday) return true;
     const lastAttemptAt = readLastSyncAttempt();
     if (lastAttemptAt && (Date.now() - lastAttemptAt) < NAV_SYNC_THROTTLE_MS) return true;
     if (needsLiveNavHydration()) return false;

@@ -526,7 +526,10 @@ const showDailySyncModal = () => {
 
 const handleDailySyncLifecycle = async (event) => {
   const phase = event.detail?.phase;
+  const manual = event.detail?.manual === true;
+  const alreadyCompletedToday = hasCompletedDailySyncToday();
   if (phase === "started") {
+    if (!manual && alreadyCompletedToday) return;
     try {
       localStorage.setItem(DAILY_SYNC_DATE_KEY, localTodayIso());
       localStorage.setItem(DAILY_SYNC_COMPLETED_KEY, "false");
@@ -547,6 +550,7 @@ const handleDailySyncLifecycle = async (event) => {
     return;
   }
   if (phase === "failed") {
+    if (!manual && alreadyCompletedToday) return;
     try {
       localStorage.setItem(DAILY_SYNC_COMPLETED_KEY, "false");
     } catch {}
