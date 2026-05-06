@@ -43,6 +43,8 @@ let modalHistoryArmed = false;
 let modalHistoryNavigating = false;
 let serverUpdateVersion = null;
 let updateCheckTimer = null;
+let installPromptFallbackTimer = null;
+let allowInstallCtaBypass = false;
 const deferredRenderJobs = new Map();
 let controlStateFrame = 0;
 let searchInputTimer = 0;
@@ -3435,8 +3437,21 @@ const showMainApp = () => {
 
 const installCtaMode = () => {
   if (deferredInstallPrompt) return "install";
-  if (location.protocol === "file:") return "continue";
+  if (allowInstallCtaBypass) return "continue";
+  if (!/^https?:$/i.test(String(location.protocol || ""))) return "continue";
   return "waiting";
+};
+
+const scheduleInstallPromptFallback = () => {
+  if (installPromptFallbackTimer) {
+    window.clearTimeout(installPromptFallbackTimer);
+  }
+  allowInstallCtaBypass = false;
+  installPromptFallbackTimer = window.setTimeout(() => {
+    if (deferredInstallPrompt || isInstalledApp() || hasCompletedInstallFlow()) return;
+    allowInstallCtaBypass = true;
+    updateOnboardingInstallButton();
+  }, 1200);
 };
 
 const updateOnboardingInstallButton = () => {
@@ -3535,6 +3550,7 @@ const showInstallCard = () => {
   overlay.setAttribute("aria-hidden", "false");
   currentOnboardingIndex = 0;
   updateOnboardingPosition(0);
+  scheduleInstallPromptFallback();
   updateOnboardingInstallButton();
   updateInstallButton();
 };
@@ -4477,6 +4493,7 @@ $("searchInput").addEventListener("input", (event) => {
 
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
+    allowInstallCtaBypass = false;
     deferredInstallPrompt = event;
     canShowInstall = true;
     updateInstallButton();
@@ -4485,6 +4502,7 @@ $("searchInput").addEventListener("input", (event) => {
   window.addEventListener("appinstalled", () => {
     localStorage.setItem(INSTALL_FLOW_KEY, "true");
     localStorage.setItem(LEGACY_INSTALL_FLOW_KEY, "true");
+    allowInstallCtaBypass = false;
     deferredInstallPrompt = null;
     canShowInstall = false;
     updateInstallButton();
