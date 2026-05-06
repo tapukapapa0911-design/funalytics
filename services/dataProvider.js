@@ -101,7 +101,6 @@ window.LiveDataVersion.dataProvider = (() => {
   };
   const hasUsableLiveNavData = (data) => {
     if (!data) return false;
-    if (dateValue(navDateOf(data))) return true;
     return Array.isArray(data?.funds) && data.funds.some((fund) => (
       Number.isFinite(Number(fund?.latestNav)) && dateValue(fund?.liveNavDate)
     ));

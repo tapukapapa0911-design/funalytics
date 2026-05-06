@@ -24,6 +24,7 @@ let deferredInstallPrompt = null;
 let canShowInstall = false;
 let isAppReady = false;
 const INSTALL_FLOW_KEY = "live_install_flow_done";
+const LEGACY_INSTALL_FLOW_KEY = "install_flow_done";
 const ONBOARDING_KEY = "funalytics_live_onboarding_done";
 const LEGACY_ONBOARDING_KEY = "live_onboarding_done";
 const BROWSER_INSTALL_CTA_KEY = "live_browser_install_cta_enabled";
@@ -3406,7 +3407,7 @@ const handleManualNavSync = async () => {
 const isStandaloneMode = () => window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
 const isInstalledApp = () => window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
 const hasSeenOnboarding = () => localStorage.getItem(ONBOARDING_KEY) === "true" || localStorage.getItem(LEGACY_ONBOARDING_KEY) === "true";
-const hasCompletedInstallFlow = () => localStorage.getItem(INSTALL_FLOW_KEY) === "true";
+const hasCompletedInstallFlow = () => localStorage.getItem(INSTALL_FLOW_KEY) === "true" || localStorage.getItem(LEGACY_INSTALL_FLOW_KEY) === "true";
 const shouldShowBrowserInstallCta = () => localStorage.getItem(BROWSER_INSTALL_CTA_KEY) === "true";
 
 const setAppReady = () => {
@@ -3483,6 +3484,7 @@ const hideOnboarding = () => {
 const finishOnboarding = () => {
   markOnboardingDone();
   localStorage.setItem(INSTALL_FLOW_KEY, "true");
+  localStorage.setItem(LEGACY_INSTALL_FLOW_KEY, "true");
   if (!isInstalledApp()) {
     localStorage.setItem(BROWSER_INSTALL_CTA_KEY, "true");
   }
@@ -3637,46 +3639,20 @@ const bindPullToRefreshGuard = () => {
      touch interception that can block normal app scrolling on mobile. */
 };
 
-const promptForInstall = async () => {
-  if (!deferredInstallPrompt) {
-    const installValue = $("installStatus");
-    if (installValue) installValue.textContent = "Install now";
-    updateInstallButton();
-    return false;
-  }
-  deferredInstallPrompt.prompt();
-  try {
-    const choice = await deferredInstallPrompt.userChoice;
-    const accepted = choice?.outcome === "accepted";
-    if (accepted) {
-      localStorage.removeItem(BROWSER_INSTALL_CTA_KEY);
-    } else {
-      localStorage.setItem(BROWSER_INSTALL_CTA_KEY, "true");
-    }
-    return accepted;
-  } finally {
-    deferredInstallPrompt = null;
-    canShowInstall = false;
-    updateInstallButton();
-  }
-};
-
 const updateInstallButton = () => {
   const button = profileInstallButtonEl();
   if (!button) return;
   const installed = isInstalledApp();
-  const shouldShowInstall = !installed && (shouldShowBrowserInstallCta() || canShowInstall || Boolean(deferredInstallPrompt));
-  if (!shouldShowInstall) {
+  if (installed || !canShowInstall || !deferredInstallPrompt) {
     button.hidden = true;
     button.style.display = "none";
     return;
   }
-  button.hidden = false;
-  button.style.display = "";
+  const available = Boolean(deferredInstallPrompt);
+  button.hidden = !available;
+  button.style.display = available ? "" : "none";
   const installValue = $("installStatus");
-  if (installValue) {
-    installValue.textContent = installed ? "Installed" : "Install now";
-  }
+  if (installValue) installValue.textContent = "Tap to install";
 };
 
 const openDetail = (fundId) => {
@@ -4039,22 +4015,42 @@ $("searchInput").addEventListener("input", (event) => {
   });
 
   $("onboardingInstallButton")?.addEventListener("click", async () => {
-    await promptForInstall();
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      try {
+        await deferredInstallPrompt.userChoice;
+      } finally {
+        deferredInstallPrompt = null;
+        canShowInstall = false;
+        updateInstallButton();
+      }
+    }
     localStorage.removeItem(BROWSER_INSTALL_CTA_KEY);
     localStorage.setItem(INSTALL_FLOW_KEY, "true");
+    localStorage.setItem(LEGACY_INSTALL_FLOW_KEY, "true");
     showOnboardingSlides();
   });
 
   $("onboardingSkipInstall")?.addEventListener("click", () => {
-    localStorage.setItem(BROWSER_INSTALL_CTA_KEY, "true");
+    localStorage.removeItem(BROWSER_INSTALL_CTA_KEY);
     localStorage.setItem(INSTALL_FLOW_KEY, "true");
+    localStorage.setItem(LEGACY_INSTALL_FLOW_KEY, "true");
     showOnboardingSlides();
   });
   profileInstallButtonEl()?.addEventListener("click", async () => {
-    const acceptedInstall = await promptForInstall();
-    if (acceptedInstall) {
-      const installValue = $("installStatus");
-      if (installValue) installValue.textContent = "Installed";
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    try {
+      const choice = await deferredInstallPrompt.userChoice;
+      if (choice?.outcome === "accepted") {
+        const installValue = $("installStatus");
+        if (installValue) installValue.textContent = "Installed";
+        updateInstallButton();
+      }
+    } finally {
+      deferredInstallPrompt = null;
+      canShowInstall = false;
+      updateInstallButton();
     }
   });
   document.querySelectorAll(".onboarding-next").forEach((button) => {
@@ -4130,6 +4126,7 @@ $("searchInput").addEventListener("input", (event) => {
 
   window.addEventListener("appinstalled", () => {
     localStorage.setItem(INSTALL_FLOW_KEY, "true");
+    localStorage.setItem(LEGACY_INSTALL_FLOW_KEY, "true");
     deferredInstallPrompt = null;
     canShowInstall = false;
     updateInstallButton();

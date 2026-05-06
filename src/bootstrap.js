@@ -250,7 +250,7 @@
   if (!dataProvider) {
     console.warn("[live-data-version] dataProvider unavailable during bootstrap; using backup data");
     window.FUND_APP_DATA = backupData;
-      await loadScript("./src/app.js?v=live-nav-v92");
+      await loadScript("./src/app.js?v=live-nav-v93");
     window.setTimeout(() => {
       loadOptionalScript("./assets/vendor/jszip.min.js")
         .then(() => loadOptionalScript("./src/workbook-import.js"));
@@ -265,7 +265,7 @@
     writeCachedNavDate(navDateOf(initialData));
   }
 
-      await loadScript("./src/app.js?v=live-nav-v92");
+      await loadScript("./src/app.js?v=live-nav-v93");
 
   window.setTimeout(() => {
     loadOptionalScript("./assets/vendor/jszip.min.js")
@@ -525,4 +525,5 @@
     });
   });
 })();
+
 

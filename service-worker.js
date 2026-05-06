@@ -1,4 +1,4 @@
-const SHELL_CACHE = "funalytics-shell-v41";
+﻿const SHELL_CACHE = "funalytics-shell-v48";
 const NAV_CACHE = "funalytics-nav-v2";
 const NAV_SYNC_TAG = "funalytics-nav-sync";
 const NAV_PERIODIC_SYNC_TAG = "funalytics-nav-daily";
@@ -21,7 +21,7 @@ const APP_SHELL = [
   "./services/dataProvider.js",
   "./mockData/live-nav-snapshot.js",
   "./mockData/excel-backup.json",
-  "./manifest.json?v=86",
+  "./manifest.json?v=93",
   "./manifest.webmanifest",
   "./icons/light-logo.png",
   "./icons/apple-touch-icon-v86.png",
@@ -167,4 +167,5 @@ self.addEventListener("fetch", (event) => {
     })
   );
 });
+
 
