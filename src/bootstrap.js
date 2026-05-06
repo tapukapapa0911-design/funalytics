@@ -504,9 +504,11 @@ const BUILD_VERSION = "live-nav-v100";
 
   const startBackgroundSyncAfterPaint = () => {
     const runner = async () => {
+      if (shouldSkipSyncFetch()) return;
       const registration = await registerServiceWorkerSync();
       await clearServiceWorkerNavCache(registration);
       await wait(150);
+      if (shouldSkipSyncFetch()) return;
       await triggerServiceWorkerNavSync(registration);
       await runBackgroundSnapshotSync();
     };
