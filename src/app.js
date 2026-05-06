@@ -3433,13 +3433,20 @@ const showMainApp = () => {
   $("app")?.classList.remove("is-loading");
 };
 
+const installCtaMode = () => {
+  if (deferredInstallPrompt) return "install";
+  if (location.protocol === "file:") return "continue";
+  return "waiting";
+};
+
 const updateOnboardingInstallButton = () => {
   const button = $("onboardingInstallButton");
   if (!button) return;
-  const promptReady = Boolean(deferredInstallPrompt);
-  button.disabled = !promptReady;
-  button.setAttribute("aria-disabled", promptReady ? "false" : "true");
-  button.textContent = promptReady ? "Install" : "Preparing...";
+  const mode = installCtaMode();
+  button.dataset.mode = mode;
+  button.disabled = mode === "waiting";
+  button.setAttribute("aria-disabled", mode === "waiting" ? "true" : "false");
+  button.textContent = mode === "install" ? "Install" : mode === "continue" ? "Continue" : "Preparing...";
 };
 
 const loadDashboard = () => {
@@ -4357,19 +4364,25 @@ $("searchInput").addEventListener("input", (event) => {
   });
 
   $("onboardingInstallButton")?.addEventListener("click", async () => {
+    const mode = $("onboardingInstallButton")?.dataset.mode || installCtaMode();
+    if (mode === "continue") {
+      localStorage.removeItem(BROWSER_INSTALL_CTA_KEY);
+      localStorage.setItem(INSTALL_FLOW_KEY, "true");
+      localStorage.setItem(LEGACY_INSTALL_FLOW_KEY, "true");
+      showOnboardingSlides();
+      return;
+    }
     if (!deferredInstallPrompt) {
       updateOnboardingInstallButton();
       return;
     }
-    if (deferredInstallPrompt) {
-      deferredInstallPrompt.prompt();
-      try {
-        await deferredInstallPrompt.userChoice;
-      } finally {
-        deferredInstallPrompt = null;
-        canShowInstall = false;
-        updateInstallButton();
-      }
+    deferredInstallPrompt.prompt();
+    try {
+      await deferredInstallPrompt.userChoice;
+    } finally {
+      deferredInstallPrompt = null;
+      canShowInstall = false;
+      updateInstallButton();
     }
     localStorage.removeItem(BROWSER_INSTALL_CTA_KEY);
     localStorage.setItem(INSTALL_FLOW_KEY, "true");
