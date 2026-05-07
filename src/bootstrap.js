@@ -412,9 +412,6 @@ const BUILD_VERSION = "live-nav-v100";
 
   const shouldSkipSyncFetch = () => {
     if (window[SYNC_IN_FLIGHT_FLAG]) return true;
-    const targetNavDate = previousBusinessDayIso();
-    const localNavDate = String(navDateOf(window.FUND_APP_DATA) || readCachedNavDate() || "").trim();
-    const localNavFreshEnough = Boolean(localNavDate && localNavDate >= targetNavDate);
     const completedToday = (() => {
       try {
         return localStorage.getItem(DAILY_SYNC_DATE_KEY) === localTodayIso()
@@ -423,10 +420,14 @@ const BUILD_VERSION = "live-nav-v100";
         return false;
       }
     })();
-    const syncedToday = completedToday && readLastSyncedDate() === localTodayIso();
-    if (syncedToday && localNavFreshEnough && hasUsableLiveNavData(window.FUND_APP_DATA)) return true;
+    if (completedToday) return true;
+    if (readLastSyncedDate() === localTodayIso()) return true;
+
     const lastAttemptAt = readLastSyncAttempt();
     if (lastAttemptAt && (Date.now() - lastAttemptAt) < NAV_SYNC_THROTTLE_MS) return true;
+    const targetNavDate = previousBusinessDayIso();
+    const localNavDate = String(navDateOf(window.FUND_APP_DATA) || readCachedNavDate() || "").trim();
+    const localNavFreshEnough = Boolean(localNavDate && localNavDate >= targetNavDate);
     if (needsLiveNavHydration()) return false;
     if (!localNavFreshEnough) return false;
     if (!isRecentNavDate(localNavDate)) return false;
