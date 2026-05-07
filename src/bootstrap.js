@@ -218,7 +218,24 @@ const BUILD_VERSION = "live-nav-v100";
   const backendBase = () => window.LiveDataVersion?.apiClients?.backendBase?.()
     || "https://funalytics-backend.onrender.com";
   const navUrl = () => `${backendBase()}/nav`;
+  const navUpdateUrl = (force = false) => `${backendBase()}/update-nav${force ? "?force=true" : ""}`;
   const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+  const previousBusinessDayIso = () => {
+    const now = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    const cursor = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() - 1
+    ));
+    while (cursor.getUTCDay() === 0 || cursor.getUTCDay() === 6) {
+      cursor.setUTCDate(cursor.getUTCDate() - 1);
+    }
+    const year = cursor.getUTCFullYear();
+    const month = String(cursor.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(cursor.getUTCDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
 
   const fetchLiveSnapshot = async () => {
     const url = navUrl();
@@ -245,6 +262,32 @@ const BUILD_VERSION = "live-nav-v100";
       }
     }
     console.warn("[live-data-version] /nav fetch failed after retries", lastError);
+    return null;
+  };
+
+  const requestBackendNavRefresh = async ({ force = false } = {}) => {
+    const url = navUpdateUrl(force);
+    let lastError = null;
+    for (const delayMs of NAV_SYNC_RETRY_DELAYS_MS) {
+      if (delayMs > 0) {
+        await wait(delayMs);
+      }
+      markSyncAttempt();
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(force ? { force: true } : {}),
+          signal: AbortSignal.timeout(Math.max(NAV_SYNC_TIMEOUT_MS, 55000))
+        });
+        if (!response.ok) throw new Error(`update-nav ${response.status}`);
+        return await response.json();
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    console.warn("[live-data-version] /update-nav request failed after retries", lastError);
     return null;
   };
 
@@ -369,6 +412,9 @@ const BUILD_VERSION = "live-nav-v100";
 
   const shouldSkipSyncFetch = () => {
     if (window[SYNC_IN_FLIGHT_FLAG]) return true;
+    const targetNavDate = previousBusinessDayIso();
+    const localNavDate = String(navDateOf(window.FUND_APP_DATA) || readCachedNavDate() || "").trim();
+    const localNavFreshEnough = Boolean(localNavDate && localNavDate >= targetNavDate);
     const completedToday = (() => {
       try {
         return localStorage.getItem(DAILY_SYNC_DATE_KEY) === localTodayIso()
@@ -378,11 +424,12 @@ const BUILD_VERSION = "live-nav-v100";
       }
     })();
     const syncedToday = completedToday && readLastSyncedDate() === localTodayIso();
-    if (syncedToday) return true;
+    if (syncedToday && localNavFreshEnough && hasUsableLiveNavData(window.FUND_APP_DATA)) return true;
     const lastAttemptAt = readLastSyncAttempt();
     if (lastAttemptAt && (Date.now() - lastAttemptAt) < NAV_SYNC_THROTTLE_MS) return true;
     if (needsLiveNavHydration()) return false;
-    if (!isRecentNavDate(navDateOf(window.FUND_APP_DATA))) return false;
+    if (!localNavFreshEnough) return false;
+    if (!isRecentNavDate(localNavDate)) return false;
     return false;
   };
 
@@ -391,6 +438,7 @@ const BUILD_VERSION = "live-nav-v100";
     window[SYNC_IN_FLIGHT_FLAG] = true;
     emitSyncLifecycle("started", { windowLabel: currentSyncWindow(), manual: true });
     try {
+      await requestBackendNavRefresh({ force: true });
       const snapshot = await fetchLiveSnapshot();
       if (!snapshot?.items?.length) {
         emitSyncLifecycle("failed", { fallback: true, manual: true });
@@ -439,6 +487,7 @@ const BUILD_VERSION = "live-nav-v100";
     window[SYNC_IN_FLIGHT_FLAG] = true;
     emitSyncLifecycle("started", { windowLabel: currentSyncWindow() });
     try {
+      await requestBackendNavRefresh();
       const snapshot = await fetchLiveSnapshot();
       if (!snapshot?.items?.length) {
         emitSyncLifecycle("failed", { fallback: true });
