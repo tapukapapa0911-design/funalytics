@@ -218,6 +218,7 @@ const BUILD_VERSION = "live-nav-v100";
   const backendBase = () => window.LiveDataVersion?.apiClients?.backendBase?.()
     || "https://funalytics-backend.onrender.com";
   const navUrl = () => `${backendBase()}/nav`;
+  const navSummaryUrl = () => `${backendBase()}/nav-summary`;
   const navUpdateUrl = (force = false) => `${backendBase()}/update-nav${force ? "?force=true" : ""}`;
   const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
@@ -265,6 +266,46 @@ const BUILD_VERSION = "live-nav-v100";
     return null;
   };
 
+  const fetchNavSummary = async () => {
+    let lastError = null;
+    for (const delayMs of NAV_SYNC_RETRY_DELAYS_MS) {
+      if (delayMs > 0) {
+        await wait(delayMs);
+      }
+      try {
+        const response = await fetch(navSummaryUrl(), {
+          cache: "no-store",
+          signal: AbortSignal.timeout(Math.min(NAV_SYNC_TIMEOUT_MS, 12000))
+        });
+        if (!response.ok) throw new Error(`nav-summary ${response.status}`);
+        return await response.json();
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    console.warn("[live-data-version] /nav-summary fetch failed after retries", lastError);
+    return null;
+  };
+
+  const clearLocalDatasetState = () => {
+    try {
+      localStorage.removeItem(CACHED_NAV_DATE_KEY);
+      localStorage.removeItem(LAST_SYNCED_DATE_KEY);
+      localStorage.removeItem(DAILY_SYNC_DATE_KEY);
+      localStorage.removeItem(DAILY_SYNC_COMPLETED_KEY);
+      localStorage.removeItem(DAILY_SYNC_AT_KEY);
+      localStorage.removeItem("fundpulse-live-data-v10");
+      localStorage.removeItem("live-funalytics-bootstrap-cache");
+    } catch {}
+    try {
+      const cacheApi = window.LiveDataVersion?.cache;
+      const schema = window.LiveDataVersion?.schema;
+      cacheApi?.remove?.(schema?.cache?.datasetKey || "fundpulse-live-data-v10");
+      cacheApi?.remove?.("fundpulse-live-data-v10");
+      cacheApi?.remove?.("live-funalytics-bootstrap-cache");
+    } catch {}
+  };
+
   const requestBackendNavRefresh = async ({ force = false } = {}) => {
     const url = navUpdateUrl(force);
     let lastError = null;
@@ -301,6 +342,22 @@ const BUILD_VERSION = "live-nav-v100";
         .then(() => loadOptionalScript("./src/workbook-import.js"));
     }, 0);
     return;
+  }
+
+  try {
+    const backendSummary = await fetchNavSummary();
+    const backendNavDate = String(backendSummary?.latestDate || "").trim();
+    const localNavDate = String(navDateOf(window.FUND_APP_DATA) || readCachedNavDate() || "").trim();
+    if (backendNavDate && isoDateValue(backendNavDate) > isoDateValue(localNavDate)) {
+      clearLocalDatasetState();
+      const snapshot = await fetchLiveSnapshot();
+      if (snapshot?.items?.length) {
+        window.LIVE_NAV_SNAPSHOT = snapshot;
+        writeCachedNavDate(String(snapshot.latestDate || backendNavDate));
+      }
+    }
+  } catch (error) {
+    console.warn("[live-data-version] backend freshness preflight skipped", error);
   }
 
   const bootData = dataProvider.primeAppData({ backupData });
