@@ -186,14 +186,19 @@
         el.className = `pill ${tone || ""}`;
       };
 
-      async function fetchJson(url) {
-        const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(10000) });
+      async function fetchJson(url, timeoutMs = 10000) {
+        const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
         if (!response.ok) throw new Error(`${url} -> ${response.status}`);
         return response.json();
       }
 
-      async function fetchSnapshotLikePayload() {
-        const snapshot = await fetchJson(`${backendBase}/nav`);
+      async function fetchSnapshotSummary() {
+        const summary = await fetchJson(`${backendBase}/nav-summary`, 15000);
+        return { source: "/nav-summary", payload: summary };
+      }
+
+      async function fetchSnapshotItems() {
+        const snapshot = await fetchJson(`${backendBase}/nav`, 25000);
         return { source: "/nav", payload: snapshot };
       }
 
@@ -303,36 +308,46 @@
         document.getElementById("backendBase").textContent = backendBase;
         setStatus("Checking...", "warn");
         try {
-          const [health, meta, snapshotResult] = await Promise.all([
+          const [health, meta, summaryResult] = await Promise.all([
             fetchJson(`${backendBase}/health`).catch(() => null),
             fetchJson(`${backendBase}/meta/last-updated`).catch(() => null),
-            fetchSnapshotLikePayload()
+            fetchSnapshotSummary()
           ]);
-          const payload = snapshotResult.payload || {};
-          const items = Array.isArray(payload.items) ? payload.items : [];
-          latestItems = items;
-          const appMatches = countAppMatches(items);
-          const latestDate = latestItemDate(items) || payload.latestDate || "";
+          const summary = summaryResult.payload || {};
+          const latestDate = summary.latestDate || "";
 
           document.getElementById("latestDate").textContent = fmtDate(latestDate);
           document.getElementById("latestDateNote").textContent = latestDate
             ? "This is the live NAV date your app should show."
             : "No NAV date found yet.";
-          document.getElementById("lastFetch").textContent = fmtDateTime(payload.lastFetchTimestamp || meta?.lastUpdated || "");
+          document.getElementById("lastFetch").textContent = fmtDateTime(summary.lastFetchTimestamp || meta?.lastUpdated || "");
           document.getElementById("healthUpdate").textContent = meta?.lastUpdated
             ? `Last update: ${fmtDateTime(meta.lastUpdated)}`
             : (health?.status === "ok" ? "Health endpoint OK" : "Health endpoint unavailable");
-          document.getElementById("snapshotCount").textContent = String(items.length || 0);
-          document.getElementById("snapshotSource").textContent = `Loaded via ${snapshotResult.source}`;
-          document.getElementById("appMatchCount").textContent = `${appMatches.matched}/${appMatches.total}`;
-          document.getElementById("appMatchNote").textContent = appMatches.matched === appMatches.total
-            ? "Backend snapshot covers all app funds."
-            : "Matched app funds from the backend snapshot.";
+          document.getElementById("snapshotCount").textContent = String(summary.count || 0);
+          document.getElementById("snapshotSource").textContent = `Loaded via ${summaryResult.source}`;
           document.getElementById("schedulerStatus").textContent = health?.status === "ok" ? "healthy" : "unknown";
-          document.getElementById("schedulerNext").textContent = "Cron check: call /update-nav daily, then confirm /nav latestDate changed.";
-          syncCategoryOptions(items);
-          renderFundsTable(items);
+          document.getElementById("schedulerNext").textContent = "Cron check: run update jobs from 1:00 AM onward, then confirm /nav latestDate changed.";
           setStatus(latestDate ? "Backend looks healthy" : "No NAV date found", latestDate ? "good" : "warn");
+
+          try {
+            const snapshotResult = await fetchSnapshotItems();
+            const payload = snapshotResult.payload || {};
+            const items = Array.isArray(payload.items) ? payload.items : [];
+            latestItems = items;
+            const appMatches = countAppMatches(items);
+            document.getElementById("appMatchCount").textContent = `${appMatches.matched}/${appMatches.total}`;
+            document.getElementById("appMatchNote").textContent = appMatches.matched === appMatches.total
+              ? "Backend snapshot covers all app funds."
+              : "Matched app funds from the backend snapshot.";
+            syncCategoryOptions(items);
+            renderFundsTable(items);
+          } catch (tableError) {
+            latestItems = [];
+            document.getElementById("appMatchCount").textContent = "--";
+            document.getElementById("appMatchNote").textContent = "Detailed snapshot table timed out.";
+            document.getElementById("tableBody").innerHTML = `<tr><td colspan="4" class="muted">${String(tableError.message).replace(/</g, "&lt;")}</td></tr>`;
+          }
         } catch (error) {
           document.getElementById("latestDate").textContent = "--";
           document.getElementById("latestDateNote").textContent = error.message;
