@@ -1,4 +1,4 @@
-const SHELL_CACHE = "funalytics-shell-v56";
+const SHELL_CACHE = "funalytics-shell-v57";
 const NAV_CACHE = "funalytics-nav-v2";
 const NAV_SYNC_TAG = "funalytics-nav-sync";
 const NAV_PERIODIC_SYNC_TAG = "funalytics-nav-daily";
@@ -140,15 +140,27 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (isNavigation) {
-    event.respondWith(
-      fetch(request)
+    event.respondWith((async () => {
+      const cache = await caches.open(SHELL_CACHE);
+      const cached = await caches.match("./index.html") || await caches.match(request);
+      const networkPromise = fetch(request)
         .then((response) => {
-          const clone = response.clone();
-          caches.open(SHELL_CACHE).then((cache) => cache.put("./index.html", clone));
+          if (response && response.ok) {
+            cache.put("./index.html", response.clone());
+          }
           return response;
         })
-        .catch(async () => (await caches.match(request)) || (await caches.match("./index.html")))
-    );
+        .catch(() => null);
+
+      if (cached) {
+        event.waitUntil(networkPromise);
+        return cached;
+      }
+
+      const fresh = await networkPromise;
+      if (fresh) return fresh;
+      return Response.error();
+    })());
     return;
   }
 

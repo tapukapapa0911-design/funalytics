@@ -336,28 +336,12 @@ const BUILD_VERSION = "live-nav-v101";
   if (!dataProvider) {
     console.warn("[live-data-version] dataProvider unavailable during bootstrap; using backup data");
     window.FUND_APP_DATA = backupData;
-    await loadScript("./src/app.js?v=live-nav-v100");
+    await loadScript("./src/app.js");
     window.setTimeout(() => {
       loadOptionalScript("./assets/vendor/jszip.min.js")
         .then(() => loadOptionalScript("./src/workbook-import.js"));
     }, 0);
     return;
-  }
-
-  try {
-    const backendSummary = await fetchNavSummary();
-    const backendNavDate = String(backendSummary?.latestDate || "").trim();
-    const localNavDate = String(navDateOf(window.FUND_APP_DATA) || readCachedNavDate() || "").trim();
-    if (backendNavDate && isoDateValue(backendNavDate) > isoDateValue(localNavDate)) {
-      clearLocalDatasetState();
-      const snapshot = await fetchLiveSnapshot();
-      if (snapshot?.items?.length) {
-        window.LIVE_NAV_SNAPSHOT = snapshot;
-        writeCachedNavDate(String(snapshot.latestDate || backendNavDate));
-      }
-    }
-  } catch (error) {
-    console.warn("[live-data-version] backend freshness preflight skipped", error);
   }
 
   const bootData = dataProvider.primeAppData({ backupData });
@@ -367,7 +351,7 @@ const BUILD_VERSION = "live-nav-v101";
     writeCachedNavDate(navDateOf(initialData));
   }
 
-    await loadScript("./src/app.js?v=live-nav-v100");
+  await loadScript("./src/app.js");
 
   window.setTimeout(() => {
     loadOptionalScript("./assets/vendor/jszip.min.js")
