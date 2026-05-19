@@ -27,6 +27,7 @@ const INSTALL_FLOW_KEY = "live_install_flow_done";
 const LEGACY_INSTALL_FLOW_KEY = "install_flow_done";
 const ONBOARDING_KEY = "funalytics_live_onboarding_done";
 const LEGACY_ONBOARDING_KEY = "live_onboarding_done";
+const PRODUCT_TOUR_KEY = "funalytics_product_tour_done_v1";
 const BROWSER_INSTALL_CTA_KEY = "live_browser_install_cta_enabled";
 const FAVORITES_KEY = "fundpulse-live-favorite-funds";
 const UPDATE_BANNER_DISMISSED_KEY = "live-funalytics-update-banner-dismissed";
@@ -45,6 +46,8 @@ let serverUpdateVersion = null;
 let updateCheckTimer = null;
 let installPromptFallbackTimer = null;
 let allowInstallCtaBypass = false;
+let productTourIndex = 0;
+let productTourActive = false;
 const deferredRenderJobs = new Map();
 let controlStateFrame = 0;
 let searchInputTimer = 0;
@@ -80,6 +83,38 @@ const DAILY_SYNC_FACTS = [
   "Cash flow discipline is part of investment performance too.",
   "Portfolio overlap can quietly reduce diversification benefits.",
   "A strong process often outlasts short-term outperformance."
+];
+const PRODUCT_TOUR_STEPS = [
+  {
+    selector: ".summary-hero",
+    eyebrow: "Dashboard",
+    title: "Category snapshot",
+    body: "Score, date, and category."
+  },
+  {
+    selector: "#categoryTrigger",
+    eyebrow: "Categories",
+    title: "Switch fund category",
+    body: "Tap to change the category."
+  },
+  {
+    selector: '.bottom-nav button[data-tab="funds"]',
+    eyebrow: "Rankings",
+    title: "View ranked funds",
+    body: "Score, returns, and risk."
+  },
+  {
+    selector: '.bottom-nav button[data-tab="compare"]',
+    eyebrow: "Compare",
+    title: "Compare funds",
+    body: "Side-by-side fund view."
+  },
+  {
+    selector: '.bottom-nav button[data-tab="planner"]',
+    eyebrow: "Planner",
+    title: "Build a plan",
+    body: "Create your portfolio plan."
+  }
 ];
 
 const markUserInteraction = () => {
@@ -2201,6 +2236,12 @@ const PLANNER_CATEGORY_MATCHES = {
   "Sectoral / Thematic Funds": ["sectoral", "thematic"]
 };
 
+const RISK_RETURN_MAP = {
+  conservative: 8,
+  moderate: 12,
+  aggressive: 16
+};
+
 const plannerState = {
   amount: 5000,
   investType: "sip",
@@ -2208,7 +2249,7 @@ const plannerState = {
   targetAmount: null,
   years: 10,
   risk: "moderate",
-  returnRate: 12.5,
+  returnRate: 12,
   inflationRate: 6,
   resultsVisible: false
 };
@@ -2529,10 +2570,9 @@ const plannerNormalisePctRows = (rows) => {
 const buildSmartPlannerAllocations = () => {
   const goalProfile = parsePlannerGoalProfile();
   const flags = goalProfile.flags;
-  const risk = plannerState.returnRate < 8 ? "conservative" : (plannerState.risk || "moderate");
+  const risk = plannerState.risk || "moderate";
   const years = Number(plannerState.years) || 10;
   const inflation = Number(plannerState.inflationRate) || 6;
-  const expectedReturn = Number(plannerState.returnRate) || 12.5;
   const base = {
     conservative: { equity: 30, debt: 55, gold: 15 },
     moderate: { equity: 60, debt: 30, gold: 10 },
@@ -2627,7 +2667,7 @@ const buildSmartPlannerAllocations = () => {
     "Gold / Commodity Funds": "#4DA3FF"
   };
 
-  const subProfile = expectedReturn < 8 ? "conservative" : risk;
+  const subProfile = risk;
   const baseSub = {
     conservative: { large: 55, flexi: 30, mid: 15, small: 0, thematic: 0 },
     moderate: { large: 35, flexi: 25, mid: 25, small: 10, thematic: 5 },
@@ -2644,14 +2684,14 @@ const buildSmartPlannerAllocations = () => {
     sub.flexi += 5;
     sub.large += Math.max(0, removedSmall - 5);
   }
-  if (expectedReturn > 14) {
+  if (plannerState.risk === "aggressive") {
     sub.small += 5;
     sub.mid += 5;
     sub.large -= 10;
-  } else if (expectedReturn > 12) {
+  } else if (plannerState.risk === "moderate") {
     sub.mid += 5;
     sub.large -= 5;
-  } else if (expectedReturn < 10) {
+  } else {
     sub.small = 0;
     sub.mid = Math.max(0, sub.mid - 5);
     sub.large += 5;
@@ -2869,7 +2909,6 @@ const normaliseSavedPortfolio = (plan, index = 0) => {
   const stateSource = plan.state || plan;
   const amount = Number(stateSource.amount);
   const years = Number(stateSource.years);
-  const returnRate = Number(stateSource.returnRate);
   const inflationRate = Number(stateSource.inflationRate);
   return {
     id: plan.id || `legacy-${index}-${Number(new Date(plan.savedAt || Date.now())) || Date.now()}`,
@@ -2880,7 +2919,7 @@ const normaliseSavedPortfolio = (plan, index = 0) => {
       investType: stateSource.investType === "lumpsum" ? "lumpsum" : "sip",
       years: Number.isFinite(years) && years > 0 ? years : 10,
       risk: ["conservative", "moderate", "aggressive"].includes(stateSource.risk) ? stateSource.risk : "moderate",
-      returnRate: Number.isFinite(returnRate) ? returnRate : 12.5,
+      returnRate: RISK_RETURN_MAP[stateSource.risk] ?? 12,
       inflationRate: Number.isFinite(inflationRate) ? inflationRate : 6
     },
     summary: plan.summary || {}
@@ -2933,7 +2972,7 @@ const applySavedPortfolio = (plan) => {
   plannerState.investType = saved.state.investType === "lumpsum" ? "lumpsum" : "sip";
   plannerState.years = Number(saved.state.years) || 10;
   plannerState.risk = saved.state.risk || "moderate";
-  plannerState.returnRate = Number(saved.state.returnRate) || 12.5;
+  plannerState.returnRate = RISK_RETURN_MAP[saved.state.risk] ?? 12;
   plannerState.inflationRate = Number(saved.state.inflationRate) || 6;
   plannerState.resultsVisible = true;
   renderPlanner();
@@ -3130,7 +3169,6 @@ const renderPlanner = () => {
   const yearsButton = $("plannerYearsButton");
   const yearsLabel = $("plannerYearsLabel");
   const yearsMenu = $("plannerYearsMenu");
-  const slider = $("plannerReturnSlider");
   const display = $("plannerReturnDisplay");
   const inflationSlider = $("plannerInflationSlider");
   const inflationDisplay = $("plannerInflationDisplay");
@@ -3193,13 +3231,6 @@ const renderPlanner = () => {
       yearsButton?.setAttribute("aria-expanded", "false");
     });
 
-    slider?.addEventListener("input", () => {
-      plannerState.returnRate = Number(slider.value) || 12.5;
-      if (display) display.textContent = `${plannerState.returnRate}%`;
-      updatePlannerInsight();
-      hidePlannerResults();
-    });
-
     inflationSlider?.addEventListener("input", () => {
       plannerState.inflationRate = Number(inflationSlider.value) || 6;
       if (inflationDisplay) inflationDisplay.textContent = `${plannerState.inflationRate}%`;
@@ -3212,6 +3243,9 @@ const renderPlanner = () => {
         document.querySelectorAll(".risk-btn[data-risk]").forEach((item) => item.classList.remove("active"));
         button.classList.add("active");
         plannerState.risk = button.dataset.risk || "moderate";
+        plannerState.returnRate = RISK_RETURN_MAP[plannerState.risk] ?? 12;
+        const display = $("plannerReturnDisplay");
+        if (display) display.textContent = `${plannerState.returnRate}%`;
         updatePlannerInsight();
         hidePlannerResults();
       });
@@ -3242,7 +3276,7 @@ const renderPlanner = () => {
   });
   if (years) years.value = String(plannerState.years);
   if (yearsLabel) yearsLabel.textContent = `${plannerState.years} Years`;
-  if (slider) slider.value = String(plannerState.returnRate);
+  plannerState.returnRate = RISK_RETURN_MAP[plannerState.risk] ?? 12;
   if (display) display.textContent = `${plannerState.returnRate}%`;
   if (inflationSlider) inflationSlider.value = String(plannerState.inflationRate);
   if (inflationDisplay) inflationDisplay.textContent = `${plannerState.inflationRate}%`;
@@ -3419,6 +3453,7 @@ const handleManualNavSync = async () => {
 const isStandaloneMode = () => window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
 const isInstalledApp = () => window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
 const hasSeenOnboarding = () => localStorage.getItem(ONBOARDING_KEY) === "true" || localStorage.getItem(LEGACY_ONBOARDING_KEY) === "true";
+const hasSeenProductTour = () => localStorage.getItem(PRODUCT_TOUR_KEY) === "true";
 const hasCompletedInstallFlow = () => localStorage.getItem(INSTALL_FLOW_KEY) === "true" || localStorage.getItem(LEGACY_INSTALL_FLOW_KEY) === "true";
 const shouldShowBrowserInstallCta = () => localStorage.getItem(BROWSER_INSTALL_CTA_KEY) === "true";
 
@@ -3431,6 +3466,143 @@ const setAppReady = () => {
 const markOnboardingDone = () => {
   localStorage.setItem(ONBOARDING_KEY, "true");
   localStorage.setItem(LEGACY_ONBOARDING_KEY, "true");
+};
+
+const markProductTourDone = () => {
+  localStorage.setItem(PRODUCT_TOUR_KEY, "true");
+};
+
+const productTourEl = () => $("productTourOverlay");
+
+const ensureProductTourOverlay = () => {
+  let overlay = productTourEl();
+  if (overlay) return overlay;
+  overlay = document.createElement("div");
+  overlay.id = "productTourOverlay";
+  overlay.className = "product-tour-overlay";
+  overlay.hidden = true;
+  overlay.setAttribute("aria-hidden", "true");
+  overlay.innerHTML = `
+    <div class="product-tour-dim" aria-hidden="true"></div>
+    <div class="product-tour-focus" id="productTourFocus" aria-hidden="true"></div>
+    <section class="product-tour-card" id="productTourCard" role="dialog" aria-modal="true" aria-labelledby="productTourTitle">
+      <p class="eyebrow" id="productTourEyebrow">Quick tour</p>
+      <h2 id="productTourTitle"></h2>
+      <p class="muted" id="productTourBody"></p>
+      <div class="product-tour-dots" id="productTourDots" aria-hidden="true"></div>
+      <div class="product-tour-actions">
+        <button class="secondary-action" id="productTourSkip" type="button">Skip</button>
+        <button class="primary-action" id="productTourNext" type="button">Next</button>
+      </div>
+    </section>
+  `;
+  document.body.appendChild(overlay);
+  $("productTourSkip")?.addEventListener("click", finishProductTour);
+  $("productTourNext")?.addEventListener("click", () => {
+    if (productTourIndex >= PRODUCT_TOUR_STEPS.length - 1) {
+      finishProductTour();
+      return;
+    }
+    productTourIndex += 1;
+    renderProductTourStep();
+  });
+  return overlay;
+};
+
+const positionProductTourCard = (targetRect) => {
+  const card = $("productTourCard");
+  if (!card) return;
+  const gap = 12;
+  const margin = 16;
+  const cardRect = card.getBoundingClientRect();
+  const safeTarget = targetRect || { top: 92, bottom: 180, left: 16, width: window.innerWidth - 32 };
+  let top = safeTarget.bottom + gap;
+  if (top + cardRect.height + margin > window.innerHeight) {
+    top = Math.max(margin, safeTarget.top - cardRect.height - gap);
+  }
+  const center = safeTarget.left + safeTarget.width / 2;
+  let left = center - cardRect.width / 2;
+  left = Math.max(margin, Math.min(left, window.innerWidth - cardRect.width - margin));
+  card.style.transform = `translate3d(${Math.round(left)}px, ${Math.round(top)}px, 0)`;
+};
+
+const blockProductTourScroll = (event) => {
+  if (!productTourActive) return;
+  event.preventDefault();
+};
+
+const renderProductTourStep = () => {
+  if (!productTourActive) return;
+  const step = PRODUCT_TOUR_STEPS[productTourIndex] || PRODUCT_TOUR_STEPS[0];
+  const target = document.querySelector(step.selector);
+  const focus = $("productTourFocus");
+  const eyebrow = $("productTourEyebrow");
+  const title = $("productTourTitle");
+  const body = $("productTourBody");
+  const dots = $("productTourDots");
+  const next = $("productTourNext");
+
+  if (eyebrow) eyebrow.textContent = step.eyebrow;
+  if (title) title.textContent = step.title;
+  if (body) body.textContent = step.body;
+  if (dots) {
+    dots.innerHTML = PRODUCT_TOUR_STEPS.map((_, index) => `<i class="${index === productTourIndex ? "active" : ""}"></i>`).join("");
+  }
+  if (next) next.textContent = productTourIndex === PRODUCT_TOUR_STEPS.length - 1 ? "Done" : "Next";
+
+  if (!target || !focus) {
+    if (focus) focus.hidden = true;
+    positionProductTourCard();
+    return;
+  }
+
+  focus.hidden = false;
+  const rect = target.getBoundingClientRect();
+  const pad = 6;
+  focus.style.transform = `translate3d(${Math.round(rect.left - pad)}px, ${Math.round(rect.top - pad)}px, 0)`;
+  focus.style.width = `${Math.round(rect.width + pad * 2)}px`;
+  focus.style.height = `${Math.round(rect.height + pad * 2)}px`;
+  positionProductTourCard(rect);
+};
+
+const finishProductTour = () => {
+  productTourActive = false;
+  markProductTourDone();
+  const overlay = productTourEl();
+  if (!overlay) return;
+  overlay.classList.remove("open");
+  overlay.setAttribute("aria-hidden", "true");
+  document.documentElement.classList.remove("product-tour-open");
+  document.body.classList.remove("product-tour-open");
+  window.removeEventListener("wheel", blockProductTourScroll, { capture: true });
+  window.removeEventListener("touchmove", blockProductTourScroll, { capture: true });
+  window.setTimeout(() => {
+    overlay.hidden = true;
+  }, 180);
+  window.removeEventListener("resize", renderProductTourStep);
+  window.removeEventListener("scroll", renderProductTourStep, true);
+};
+
+const maybeStartProductTour = () => {
+  if (!hasSeenOnboarding() || hasSeenProductTour()) return;
+  if (state.tab !== "dashboard") {
+    navigateToTab("dashboard");
+  }
+  const overlay = ensureProductTourOverlay();
+  productTourIndex = 0;
+  productTourActive = true;
+  document.documentElement.classList.add("product-tour-open");
+  document.body.classList.add("product-tour-open");
+  window.addEventListener("wheel", blockProductTourScroll, { passive: false, capture: true });
+  window.addEventListener("touchmove", blockProductTourScroll, { passive: false, capture: true });
+  overlay.hidden = false;
+  overlay.setAttribute("aria-hidden", "false");
+  window.setTimeout(() => {
+    overlay.classList.add("open");
+    renderProductTourStep();
+  }, 420);
+  window.addEventListener("resize", renderProductTourStep);
+  window.addEventListener("scroll", renderProductTourStep, true);
 };
 
 const showMainApp = () => {
@@ -3532,6 +3704,7 @@ const finishOnboarding = () => {
   }
   hideOnboarding();
   enterApp();
+  maybeStartProductTour();
 };
 
 const handleOnboardingNext = () => {
@@ -4548,6 +4721,7 @@ const init = () => {
 window.resetOnboarding = () => {
   localStorage.removeItem(ONBOARDING_KEY);
   localStorage.removeItem(LEGACY_ONBOARDING_KEY);
+  localStorage.removeItem(PRODUCT_TOUR_KEY);
   location.reload();
 };
 

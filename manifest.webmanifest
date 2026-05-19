@@ -3,7 +3,7 @@
   "short_name": "Funalytics",
   "id": "/?v=3",
   "description": "Mutual Fund Analytics Dashboard",
-  "start_url": "./index.html?v=86",
+  "start_url": "./index.html?v=101",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",

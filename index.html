@@ -323,10 +323,10 @@
                 <span>Insights &amp; Methodology</span>
                 <strong>View Details</strong>
               </button>
-              <a class="setting-row contact-link" href="mailto:ameenmkhan2004@gmail.com">
-                <span>Contact Developer</span>
-                <strong>ameenmkhan2004@gmail.com</strong>
-              </a>
+                <a class="setting-row contact-link" href="mailto:bestinthebiz0911@gmail.com">
+                  <span>Contact Developer</span>
+                  <strong>bestinthebiz0911@gmail.com</strong>
+                </a>
               <div class="about-item" id="installAppBtn" hidden>
                 <span>Install App</span>
                 <span id="installStatus">Tap to install</span>
@@ -356,13 +356,13 @@
               </div>
         <div class="planner-field"><label class="planner-label" for="plannerYearsButton">For a period of</label><div class="planner-years-control" id="plannerYearsCustom"><button class="planner-years-trigger" id="plannerYearsButton" type="button" aria-expanded="false" aria-controls="plannerYearsMenu"><strong id="plannerYearsLabel">10 Years</strong><i aria-hidden="true"></i></button><div class="planner-years-menu" id="plannerYearsMenu" hidden><button data-years="3" type="button">3 Years</button><button data-years="5" type="button">5 Years</button><button data-years="7" type="button">7 Years</button><button data-years="10" class="active" type="button">10 Years</button><button data-years="15" type="button">15 Years</button><button data-years="20" type="button">20 Years</button></div><select id="plannerYears" class="planner-select planner-select-native" aria-label="Investment period" tabindex="-1"><option value="3">3 Years</option><option value="5">5 Years</option><option value="7">7 Years</option><option value="10" selected>10 Years</option><option value="15">15 Years</option><option value="20">20 Years</option></select></div></div>
               <div class="planner-field"><label class="planner-label" for="plannerRisk">My risk appetite</label><div class="planner-risk-row" role="group" aria-label="Risk appetite"><button class="risk-btn" data-risk="conservative" type="button">Conservative</button><button class="risk-btn active" data-risk="moderate" type="button">Moderate</button><button class="risk-btn" data-risk="aggressive" type="button">Aggressive</button></div></div>
-              <div class="planner-field"><label class="planner-label" for="plannerReturnSlider">Expected return (p.a.)</label><div class="planner-return-display" id="plannerReturnDisplay">12.5%</div><input type="range" id="plannerReturnSlider" class="planner-slider" min="8" max="25" step="0.5" value="12.5" aria-label="Expected annual return percentage"/><div class="planner-slider-labels"><span>8%</span><span>25%</span></div></div>
+              <div class="planner-field"><label class="planner-label">Expected return (p.a.)</label><div style="display: flex; align-items: center; gap: 10px;"><div class="planner-return-display" id="plannerReturnDisplay" style="cursor: default;">12%</div></div></div>
               <div class="planner-field"><label class="planner-label" for="plannerInflationSlider">Inflation rate (p.a.)</label><div class="planner-return-display" id="plannerInflationDisplay">6%</div><input type="range" id="plannerInflationSlider" class="planner-slider" min="4" max="8" step="0.25" value="6" aria-label="Expected inflation rate percentage"/><div class="planner-slider-labels"><span>4%</span><span>8%</span></div></div>
-              <div class="planner-quick-insight" id="plannerQuickInsight" aria-live="polite"><span class="planner-insight-icon" aria-hidden="true">&#9670;</span><span id="plannerInsightText">With &#8377;10.0L per month for 10 years at 12.5%, you can build &#8377;2.3Cr</span></div>
+              <div class="planner-quick-insight" id="plannerQuickInsight" aria-live="polite"><span class="planner-insight-icon" aria-hidden="true">&#9670;</span><span id="plannerInsightText">With &#8377;10.0L per month for 10 years at 12%, you can build &#8377;2.3Cr</span></div>
               <button class="planner-generate-btn" id="plannerGenerateBtn" type="button" aria-label="Generate portfolio plan">Generate Plan <span aria-hidden="true">&#8594;</span></button>
             </div>
             <div class="planner-results" id="plannerResults" hidden aria-hidden="true">
-              <div class="planner-result-hero"><div class="planner-result-main"><p class="eyebrow">Projected value</p><strong class="planner-projected-value" id="plannerProjectedValue">&#8377;11.6L</strong><p class="planner-real-value">Inflation-adjusted value: <b id="plannerRealValue">&#8377;6.5L</b></p><p class="muted planner-projected-sub" id="plannerProjectedSub">Est. Returns 12.5% p.a. over 10 years</p></div><div class="planner-result-sip"><p class="eyebrow">Total investment</p><strong class="planner-sip-value" id="plannerSipValue">&#8377;6.0L</strong></div></div>
+              <div class="planner-result-hero"><div class="planner-result-main"><p class="eyebrow">Projected value</p><strong class="planner-projected-value" id="plannerProjectedValue">&#8377;11.6L</strong><p class="planner-real-value">Inflation-adjusted value: <b id="plannerRealValue">&#8377;6.5L</b></p><p class="muted planner-projected-sub" id="plannerProjectedSub">Est. Returns 12% p.a. over 10 years</p></div><div class="planner-result-sip"><p class="eyebrow">Total investment</p><strong class="planner-sip-value" id="plannerSipValue">&#8377;6.0L</strong></div></div>
               <div class="planner-section-card"><div class="planner-section-head"><p class="eyebrow">Portfolio Allocation</p><span class="risk-badge" id="plannerRiskBadge">Moderate Risk</span></div><div class="planner-alloc-list" id="plannerAllocList"></div></div>
               <div class="planner-section-card planner-why"><p class="eyebrow">Why this plan</p><ul class="planner-why-list" id="plannerWhyList"><li>Diversified across asset classes</li><li id="plannerWhyRisk">Calibrated to Moderate risk profile</li><li id="plannerWhyDuration">Optimised for 10-year horizon</li></ul></div>
               <div class="planner-section-card planner-disclaimer-card"><p class="eyebrow">Disclaimer</p><p class="planner-disclaimer">This planner is for education and analysis only. It is not investment advice or a recommendation to purchase any fund.</p></div>
@@ -400,7 +400,7 @@
               <strong id="portfolioProjectedValue">&#8377;32.5L</strong>
               <div class="portfolio-summary-grid">
                 <span><small>Total Investment</small><b id="portfolioTotalInvestment">&#8377;10.0L</b></span>
-                <span><small>Expected Returns</small><b id="portfolioExpectedReturn">12.5%</b></span>
+                <span><small>Expected Returns</small><b id="portfolioExpectedReturn">12%</b></span>
                 <span><small>Inflation-adjusted</small><b id="portfolioRealValue">&#8377;6.5L</b></span>
               </div>
             </div>

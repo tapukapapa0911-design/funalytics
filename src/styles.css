@@ -9851,6 +9851,137 @@ body.light .bottom-nav button.active span,
   color: #334155 !important;
 }
 
+/* First-run product tour */
+.product-tour-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.product-tour-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+html.product-tour-open,
+body.product-tour-open {
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+.product-tour-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 7, 18, 0.18);
+  z-index: 1;
+}
+
+.product-tour-focus {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 120px;
+  height: 72px;
+  border: 2px solid rgba(0, 229, 176, 0.9);
+  border-radius: 16px;
+  box-shadow: 0 0 0 9999px rgba(3, 7, 18, 0.14), 0 12px 34px rgba(0, 229, 176, 0.16);
+  transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1), width 0.32s cubic-bezier(0.4, 0, 0.2, 1), height 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.product-tour-focus[hidden] {
+  display: none !important;
+}
+
+.product-tour-card {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: min(280px, calc(100vw - 32px));
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: linear-gradient(145deg, rgba(19, 25, 41, 0.98), rgba(26, 34, 53, 0.96));
+  box-shadow: 0 18px 46px rgba(0,0,0,0.34);
+  transform: translate3d(16px, 120px, 0) scale(0.96);
+  transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+  z-index: 3;
+}
+
+.product-tour-card h2 {
+  margin: 6px 0 8px;
+  color: #fff;
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+.product-tour-card .muted {
+  margin: 0;
+  color: rgba(214, 222, 238, 0.82);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.product-tour-dots {
+  display: flex;
+  gap: 6px;
+  margin: 12px 0 14px;
+}
+
+.product-tour-dots i {
+  width: 7px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.22);
+  transition: width 0.2s ease, background-color 0.2s ease;
+}
+
+.product-tour-dots i.active {
+  width: 22px;
+  background: linear-gradient(135deg, #7C3AED, #06B6D4);
+}
+
+.product-tour-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.product-tour-actions button {
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 12px;
+  flex: 1;
+}
+
+body.light .product-tour-dim {
+  background: rgba(13, 17, 23, 0.1);
+}
+
+body.light .product-tour-card {
+  background: linear-gradient(145deg, rgba(255,255,255,0.98), rgba(244,246,251,0.96));
+  border-color: rgba(13,17,23,0.08);
+  box-shadow: 0 24px 60px rgba(13,17,23,0.18);
+}
+
+body.light .product-tour-card h2 {
+  color: #0D1117;
+}
+
+body.light .product-tour-card .muted {
+  color: #4A5568;
+}
+
+body.light .product-tour-dots i {
+  background: rgba(13,17,23,0.18);
+}
+
 /* v92: final dock fit + older soft light-theme glass. Keeps the nav from
    stretching when mobile browser safe-area values change during scroll. */
 :root {

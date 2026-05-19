@@ -527,8 +527,30 @@ const BUILD_VERSION = "live-nav-v101";
   const runBackgroundSnapshotSync = async () => {
     if (shouldSkipSyncFetch()) return;
     window[SYNC_IN_FLIGHT_FLAG] = true;
-    emitSyncLifecycle("started", { windowLabel: currentSyncWindow() });
+    const showSyncModal = needsLiveNavHydration();
+    if (showSyncModal) {
+      emitSyncLifecycle("started", { windowLabel: currentSyncWindow() });
+    }
     try {
+      const currentDateBeforeSync = String(navDateOf(window.FUND_APP_DATA) || readCachedNavDate() || "").trim();
+      const backendSummary = await fetchNavSummary();
+      const backendNavDate = String(backendSummary?.latestDate || "").trim();
+      if (
+        backendNavDate
+        && currentDateBeforeSync
+        && isoDateValue(backendNavDate) <= isoDateValue(currentDateBeforeSync)
+        && hasUsableLiveNavData(window.FUND_APP_DATA)
+      ) {
+        writeCachedNavDate(currentDateBeforeSync);
+        markSyncSuccess({ countForToday: true });
+        emitSyncLifecycle("completed", {
+          latestDate: currentDateBeforeSync,
+          status: "already-fresh-summary",
+          windowLabel: currentSyncWindow()
+        });
+        return;
+      }
+
       await requestBackendNavRefresh();
       const snapshot = await fetchLiveSnapshot();
       if (!snapshot?.items?.length) {
