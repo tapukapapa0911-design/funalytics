@@ -332,6 +332,25 @@ const BUILD_VERSION = "live-nav-v101";
     return null;
   };
 
+  const waitForFreshBackendSnapshot = async (minimumDate = "") => {
+    const targetDate = String(minimumDate || "").trim();
+    const pollDelays = [4000, 7000, 10000, 14000, 18000];
+    for (const delayMs of pollDelays) {
+      await wait(delayMs);
+      const summary = await fetchNavSummary();
+      const summaryDate = String(summary?.latestDate || "").trim();
+      if (!targetDate || (summaryDate && isoDateValue(summaryDate) >= isoDateValue(targetDate))) {
+        const snapshot = await fetchLiveSnapshot();
+        if (!snapshot?.items?.length) continue;
+        const snapshotDate = String(snapshot.latestDate || "").trim();
+        if (!targetDate || (snapshotDate && isoDateValue(snapshotDate) >= isoDateValue(targetDate))) {
+          return snapshot;
+        }
+      }
+    }
+    return null;
+  };
+
   const dataProvider = await waitForDataProvider();
   if (!dataProvider) {
     console.warn("[live-data-version] dataProvider unavailable during bootstrap; using backup data");
@@ -480,8 +499,14 @@ const BUILD_VERSION = "live-nav-v101";
     window[SYNC_IN_FLIGHT_FLAG] = true;
     emitSyncLifecycle("started", { windowLabel: currentSyncWindow(), manual: true });
     try {
-      await requestBackendNavRefresh({ force: true });
-      const snapshot = await fetchLiveSnapshot();
+      const refreshResult = await requestBackendNavRefresh({ force: true });
+      const minimumDate = [previousBusinessDayIso(), String(navDateOf(window.FUND_APP_DATA) || readCachedNavDate() || "").trim()]
+        .filter(Boolean)
+        .sort()
+        .at(-1) || "";
+      const snapshot = refreshResult?.status === "running"
+        ? await waitForFreshBackendSnapshot(minimumDate)
+        : await fetchLiveSnapshot();
       if (!snapshot?.items?.length) {
         emitSyncLifecycle("failed", { fallback: true, manual: true });
         return false;
@@ -551,8 +576,14 @@ const BUILD_VERSION = "live-nav-v101";
         return;
       }
 
-      await requestBackendNavRefresh();
-      const snapshot = await fetchLiveSnapshot();
+      const refreshResult = await requestBackendNavRefresh();
+      const minimumDate = [previousBusinessDayIso(), currentDateBeforeSync]
+        .filter(Boolean)
+        .sort()
+        .at(-1) || "";
+      const snapshot = refreshResult?.status === "running"
+        ? await waitForFreshBackendSnapshot(minimumDate)
+        : await fetchLiveSnapshot();
       if (!snapshot?.items?.length) {
         emitSyncLifecycle("failed", { fallback: true });
         return;
