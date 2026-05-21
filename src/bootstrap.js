@@ -15,7 +15,7 @@ const BUILD_VERSION = "live-nav-v101";
   const SYNC_IN_FLIGHT_FLAG = "__fundpulseNavSyncInFlight";
   const SW_NAV_SYNC_TAG = "funalytics-nav-sync";
   const SW_NAV_PERIODIC_TAG = "funalytics-nav-daily";
-  const NAV_CACHE_CLEARED_KEY = "fundpulse-nav-cache-cleared-v2";
+  const NAV_CACHE_CLEARED_KEY = "fundpulse-nav-cache-cleared-v3";
 
   const loadScript = (src) => new Promise((resolve, reject) => {
     const versionedSrc = src.includes("?") ? `${src}&v=${BUILD_VERSION}` : `${src}?v=${BUILD_VERSION}`;
@@ -176,6 +176,29 @@ const BUILD_VERSION = "live-nav-v101";
     if (!current) return true;
     if (current?.liveNavStatus === "syncing") return true;
     return !hasUsableLiveNavData(current);
+  };
+
+  const localNavReadiness = () => {
+    const targetNavDate = previousBusinessDayIso();
+    const localNavDate = String(navDateOf(window.FUND_APP_DATA) || readCachedNavDate() || "").trim();
+    const freshEnough = Boolean(
+      localNavDate
+      && isoDateValue(localNavDate) >= isoDateValue(targetNavDate)
+    );
+    const usable = freshEnough
+      && isRecentNavDate(localNavDate)
+      && hasUsableLiveNavData(window.FUND_APP_DATA)
+      && !needsLiveNavHydration();
+    return { targetNavDate, localNavDate, freshEnough, usable };
+  };
+
+  const clearSyncCompletionMarks = () => {
+    try {
+      localStorage.removeItem(LAST_SYNCED_DATE_KEY);
+      localStorage.removeItem(DAILY_SYNC_DATE_KEY);
+      localStorage.removeItem(DAILY_SYNC_COMPLETED_KEY);
+      localStorage.removeItem(DAILY_SYNC_AT_KEY);
+    } catch {}
   };
 
   const waitForDataProvider = async () => {
@@ -472,6 +495,12 @@ const BUILD_VERSION = "live-nav-v101";
 
   const shouldSkipSyncFetch = () => {
     if (window[SYNC_IN_FLIGHT_FLAG]) return true;
+    const readiness = localNavReadiness();
+    if (!readiness.usable) {
+      clearSyncCompletionMarks();
+      return false;
+    }
+
     const completedToday = (() => {
       try {
         return localStorage.getItem(DAILY_SYNC_DATE_KEY) === localTodayIso()
@@ -485,13 +514,7 @@ const BUILD_VERSION = "live-nav-v101";
 
     const lastAttemptAt = readLastSyncAttempt();
     if (lastAttemptAt && (Date.now() - lastAttemptAt) < NAV_SYNC_THROTTLE_MS) return true;
-    const targetNavDate = previousBusinessDayIso();
-    const localNavDate = String(navDateOf(window.FUND_APP_DATA) || readCachedNavDate() || "").trim();
-    const localNavFreshEnough = Boolean(localNavDate && localNavDate >= targetNavDate);
-    if (needsLiveNavHydration()) return false;
-    if (!localNavFreshEnough) return false;
-    if (!isRecentNavDate(localNavDate)) return false;
-    return false;
+    return true;
   };
 
   const runManualSnapshotSync = async () => {
@@ -558,6 +581,11 @@ const BUILD_VERSION = "live-nav-v101";
     }
     try {
       const currentDateBeforeSync = String(navDateOf(window.FUND_APP_DATA) || readCachedNavDate() || "").trim();
+      const targetNavDate = previousBusinessDayIso();
+      const shouldFetchSnapshotEarly = needsLiveNavHydration()
+        || !currentDateBeforeSync
+        || isoDateValue(currentDateBeforeSync) < isoDateValue(targetNavDate);
+      const eagerSnapshot = shouldFetchSnapshotEarly ? fetchLiveSnapshot() : null;
       const backendSummary = await fetchNavSummary();
       const backendNavDate = String(backendSummary?.latestDate || "").trim();
       if (
@@ -576,14 +604,22 @@ const BUILD_VERSION = "live-nav-v101";
         return;
       }
 
-      const refreshResult = await requestBackendNavRefresh();
-      const minimumDate = [previousBusinessDayIso(), currentDateBeforeSync]
-        .filter(Boolean)
-        .sort()
-        .at(-1) || "";
-      const snapshot = refreshResult?.status === "running"
-        ? await waitForFreshBackendSnapshot(minimumDate)
-        : await fetchLiveSnapshot();
+      let snapshot = null;
+      if (
+        backendNavDate
+        && isoDateValue(backendNavDate) >= isoDateValue(targetNavDate)
+      ) {
+        snapshot = await (eagerSnapshot || fetchLiveSnapshot());
+      } else {
+        const refreshResult = await requestBackendNavRefresh();
+        const minimumDate = [targetNavDate, currentDateBeforeSync]
+          .filter(Boolean)
+          .sort()
+          .at(-1) || "";
+        snapshot = refreshResult?.status === "running"
+          ? await waitForFreshBackendSnapshot(minimumDate)
+          : await fetchLiveSnapshot();
+      }
       if (!snapshot?.items?.length) {
         emitSyncLifecycle("failed", { fallback: true });
         return;
@@ -652,7 +688,7 @@ const BUILD_VERSION = "live-nav-v101";
       if (shouldSkipSyncFetch()) return;
       const registration = await registerServiceWorkerSync();
       await clearServiceWorkerNavCache(registration);
-      await wait(150);
+      await wait(50);
       if (shouldSkipSyncFetch()) return;
       await triggerServiceWorkerNavSync(registration);
       await runBackgroundSnapshotSync();
@@ -661,11 +697,11 @@ const BUILD_VERSION = "live-nav-v101";
     if ("requestIdleCallback" in window) {
       window.requestIdleCallback(() => {
         window.setTimeout(runner, 0);
-      }, { timeout: 3000 });
+      }, { timeout: 1000 });
       return;
     }
 
-    window.setTimeout(runner, 2000);
+    window.setTimeout(runner, 800);
   };
 
   window.requestAnimationFrame(() => {

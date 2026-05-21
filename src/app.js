@@ -58,8 +58,10 @@ const DAILY_SYNC_COMPLETED_KEY = "fundpulse-daily-sync-completed";
 const DAILY_SYNC_AT_KEY = "fundpulse-daily-synced-at";
 const DAILY_SYNC_FACT_ORDER_KEY = "fundpulse-daily-sync-fact-order";
 const DAILY_SYNC_FACT_CURSOR_KEY = "fundpulse-daily-sync-fact-cursor";
-const DAILY_SYNC_MIN_VISIBLE_MS = 1500;
-const DAILY_SYNC_FACT_INTERVAL_MS = 2800;
+const DAILY_SYNC_MIN_VISIBLE_MS = 650;
+const DAILY_SYNC_SUCCESS_HOLD_MS = 450;
+const DAILY_SYNC_FAILURE_HOLD_MS = 900;
+const DAILY_SYNC_FACT_INTERVAL_MS = 1800;
 const DAILY_SYNC_FACTS = [
   "NAV updates daily based on market closing prices.",
   "SIP helps reduce risk through rupee cost averaging.",
@@ -518,7 +520,10 @@ const completeDailySyncModal = async ({ success = true } = {}) => {
   } else {
     setDailySyncDescription("Sync failed, using last available data");
   }
-  await new Promise((resolve) => window.setTimeout(resolve, success ? 1100 : 1400));
+  await new Promise((resolve) => window.setTimeout(
+    resolve,
+    success ? DAILY_SYNC_SUCCESS_HOLD_MS : DAILY_SYNC_FAILURE_HOLD_MS
+  ));
   hideDailySyncModal();
 };
 

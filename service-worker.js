@@ -1,5 +1,5 @@
-const SHELL_CACHE = "funalytics-shell-v57";
-const NAV_CACHE = "funalytics-nav-v2";
+const SHELL_CACHE = "funalytics-shell-v59";
+const NAV_CACHE = "funalytics-nav-v3";
 const NAV_SYNC_TAG = "funalytics-nav-sync";
 const NAV_PERIODIC_SYNC_TAG = "funalytics-nav-daily";
 const DEFAULT_NAV_URL = "https://funalytics-backend.onrender.com/nav";
@@ -118,22 +118,22 @@ self.addEventListener("fetch", (event) => {
     event.respondWith((async () => {
       const cache = await caches.open(NAV_CACHE);
       const cached = await cache.match(request.url);
-      const networkPromise = withTimeout(request, { cache: "no-store" })
-        .then(async (response) => {
-          if (response && response.ok) {
-            await cache.put(request.url, response.clone());
-          }
-          return response;
-        })
-        .catch(() => null);
+      try {
+        const fresh = await withTimeout(request, { cache: "no-store" });
+        if (fresh && fresh.ok) {
+          await cache.put(request.url, fresh.clone());
+          return fresh;
+        }
+      } catch {}
 
-      if (cached) {
-        event.waitUntil(networkPromise);
-        return cached;
-      }
-
-      const fresh = await networkPromise;
-      if (fresh) return fresh;
+      if (cached) return cached;
+      try {
+        const fallback = await withTimeout(DEFAULT_NAV_URL, { cache: "no-store" });
+        if (fallback && fallback.ok) {
+          await cache.put(request.url, fallback.clone());
+          return fallback;
+        }
+      } catch {}
       return Response.error();
     })());
     return;
