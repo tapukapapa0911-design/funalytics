@@ -575,51 +575,10 @@ const BUILD_VERSION = "live-nav-v101";
   const runBackgroundSnapshotSync = async () => {
     if (shouldSkipSyncFetch()) return;
     window[SYNC_IN_FLIGHT_FLAG] = true;
-    const showSyncModal = needsLiveNavHydration();
-    if (showSyncModal) {
-      emitSyncLifecycle("started", { windowLabel: currentSyncWindow() });
-    }
+    emitSyncLifecycle("started", { windowLabel: currentSyncWindow() });
     try {
-      const currentDateBeforeSync = String(navDateOf(window.FUND_APP_DATA) || readCachedNavDate() || "").trim();
-      const targetNavDate = previousBusinessDayIso();
-      const shouldFetchSnapshotEarly = needsLiveNavHydration()
-        || !currentDateBeforeSync
-        || isoDateValue(currentDateBeforeSync) < isoDateValue(targetNavDate);
-      const eagerSnapshot = shouldFetchSnapshotEarly ? fetchLiveSnapshot() : null;
-      const backendSummary = await fetchNavSummary();
-      const backendNavDate = String(backendSummary?.latestDate || "").trim();
-      if (
-        backendNavDate
-        && currentDateBeforeSync
-        && isoDateValue(backendNavDate) <= isoDateValue(currentDateBeforeSync)
-        && hasUsableLiveNavData(window.FUND_APP_DATA)
-      ) {
-        writeCachedNavDate(currentDateBeforeSync);
-        markSyncSuccess({ countForToday: true });
-        emitSyncLifecycle("completed", {
-          latestDate: currentDateBeforeSync,
-          status: "already-fresh-summary",
-          windowLabel: currentSyncWindow()
-        });
-        return;
-      }
-
-      let snapshot = null;
-      if (
-        backendNavDate
-        && isoDateValue(backendNavDate) >= isoDateValue(targetNavDate)
-      ) {
-        snapshot = await (eagerSnapshot || fetchLiveSnapshot());
-      } else {
-        const refreshResult = await requestBackendNavRefresh();
-        const minimumDate = [targetNavDate, currentDateBeforeSync]
-          .filter(Boolean)
-          .sort()
-          .at(-1) || "";
-        snapshot = refreshResult?.status === "running"
-          ? await waitForFreshBackendSnapshot(minimumDate)
-          : await fetchLiveSnapshot();
-      }
+      await requestBackendNavRefresh();
+      const snapshot = await fetchLiveSnapshot();
       if (!snapshot?.items?.length) {
         emitSyncLifecycle("failed", { fallback: true });
         return;
@@ -688,7 +647,7 @@ const BUILD_VERSION = "live-nav-v101";
       if (shouldSkipSyncFetch()) return;
       const registration = await registerServiceWorkerSync();
       await clearServiceWorkerNavCache(registration);
-      await wait(50);
+      await wait(150);
       if (shouldSkipSyncFetch()) return;
       await triggerServiceWorkerNavSync(registration);
       await runBackgroundSnapshotSync();
@@ -697,11 +656,11 @@ const BUILD_VERSION = "live-nav-v101";
     if ("requestIdleCallback" in window) {
       window.requestIdleCallback(() => {
         window.setTimeout(runner, 0);
-      }, { timeout: 1000 });
+      }, { timeout: 3000 });
       return;
     }
 
-    window.setTimeout(runner, 800);
+    window.setTimeout(runner, 2000);
   };
 
   window.requestAnimationFrame(() => {
