@@ -525,9 +525,12 @@ const completeDailySyncModal = async ({ success = true } = {}) => {
 const startDailySyncProgressSimulation = () => {
   stopDailySyncTimers();
   dailySyncProgressTimer = window.setInterval(() => {
-    if (dailySyncProgress >= 85) return;
-    const bump = dailySyncProgress < 45 ? 5 : dailySyncProgress < 70 ? 3 : 1.2;
-    dailySyncProgress = Math.min(85, dailySyncProgress + bump);
+    if (dailySyncProgress >= 96) return;
+    const bump = dailySyncProgress < 45 ? 5 : dailySyncProgress < 70 ? 3 : dailySyncProgress < 88 ? 1.2 : 0.35;
+    dailySyncProgress = Math.min(96, dailySyncProgress + bump);
+    if (dailySyncProgress >= 88) {
+      setDailySyncDescription("Finalising latest NAV values...");
+    }
     updateDailySyncProgressUi();
   }, 240);
 

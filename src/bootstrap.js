@@ -497,7 +497,6 @@ const BUILD_VERSION = "live-nav-v101";
     if (window[SYNC_IN_FLIGHT_FLAG]) return true;
     const readiness = localNavReadiness();
     if (!readiness.usable) {
-      clearSyncCompletionMarks();
       return false;
     }
 
